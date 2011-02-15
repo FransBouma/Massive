@@ -65,7 +65,7 @@ namespace Massive {
 			//special for form submissions
 			if (o.GetType() == typeof(NameValueCollection)) {
 				var nv = (NameValueCollection)o;
-				nv.Cast<string>().Select(key => new KeyValuePair<string, object>(key, nv[key])).ToList().ForEach(i => d.Add(i));
+				nv.Cast<string>().Select(key => new KeyValuePair<string, object>(key, nv[key])).ToList().ForEach(d.Add);
 			} else {
 				//assume it's a regular lovely object
 				var props = o.GetType().GetProperties();
@@ -93,7 +93,7 @@ namespace Massive {
 		string _connectionString;
 
 		public IList<dynamic> Query(string sql, params object[] args) {
-			var result = new List<dynamic>();
+			List<dynamic> result;
 			using (var conn = OpenConnection()) {
 				using (var cmd = CreateCommand(sql, args)) {
 					cmd.Connection = conn;
@@ -108,8 +108,7 @@ namespace Massive {
 		/// Creates a DBCommand that you can use for loving your database.
 		/// </summary>
 		DbCommand CreateCommand(string sql, params object[] args) {
-			DbCommand result = null;
-			result = _factory.CreateCommand();
+		    var result = _factory.CreateCommand();
 			result.CommandText = sql;
 			if (args.Length > 0)
 				result.AddParams(args);
@@ -131,10 +130,10 @@ namespace Massive {
 		/// <param name="connectionStringName"></param>
 		public DynamicModel(string connectionStringName) {
 			//can be overridden by property setting
-			TableName = this.GetType().Name;
+			TableName = GetType().Name;
 			_connectionStringName = connectionStringName;
 
-			var providerName = "System.Data.SqlClient";
+			string providerName;
 			if (ConfigurationManager.ConnectionStrings[_connectionStringName] != null) {
 				providerName = ConfigurationManager.ConnectionStrings[_connectionStringName].ProviderName ?? "System.Data.SqlClient";
 			} else {
@@ -165,7 +164,7 @@ namespace Massive {
 		/// </summary>
 		public object GetPrimaryKey(object o) {
 			var d = o.ToDictionary();
-			object result = null;
+			object result;
 			d.TryGetValue(PrimaryKeyField, out result);
 			return result;
 		}
@@ -196,19 +195,18 @@ namespace Massive {
 		/// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
 		/// </summary>
 		public DbCommand CreateInsertCommand(object o) {
-			DbCommand result = null;
-			//turn this into an expando - we'll need that for the validators
+		    //turn this into an expando - we'll need that for the validators
 			var expando = o.ToExpando();
 			var settings = (IDictionary<string, object>)expando;
 			var sbKeys = new StringBuilder();
 			var sbVals = new StringBuilder();
-			var stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2}); \r\nSELECT SCOPE_IDENTITY()";
-			result = CreateCommand(stub);
+			const string stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2}); \r\nSELECT SCOPE_IDENTITY()";
+			var result = CreateCommand(stub);
 
 			int counter = 0;
 			foreach (var item in settings) {
 				sbKeys.AppendFormat("{0},", item.Key);
-				sbVals.AppendFormat("@{0},", counter.ToString());
+				sbVals.AppendFormat("@{0},", counter);
 				result.AddParam(item.Value);
 				counter++;
 			}
@@ -229,15 +227,14 @@ namespace Massive {
 			var expando = o.ToExpando();
 			var settings = (IDictionary<string, object>)expando;
 			var sbKeys = new StringBuilder();
-			var stub = "UPDATE {0} SET {1} WHERE {2} = @{3}";
-			var args = new List<object>();
+			const string stub = "UPDATE {0} SET {1} WHERE {2} = @{3}";
 			var result = CreateCommand(stub);
 			int counter = 0;
 			foreach (var item in settings) {
 				var val = item.Value;
 				if (!item.Key.Equals(PrimaryKeyField, StringComparison.CurrentCultureIgnoreCase) && item.Value != null) {
 					result.AddParam(val);
-					sbKeys.AppendFormat("{0} = @{1}, \r\n", item.Key, counter.ToString());
+					sbKeys.AppendFormat("{0} = @{1}, \r\n", item.Key, counter);
 					counter++;
 				}
 			}
@@ -260,6 +257,7 @@ namespace Massive {
 			if (BeforeUpdate(o)) {
 				using (var conn = OpenConnection()) {
 					using (var cmd = CreateUpdateCommand(o, key)) {
+                        cmd.Connection = conn;
 						result = cmd.ExecuteNonQuery();
 						AfterUpdate(o);
 					}
@@ -340,7 +338,7 @@ namespace Massive {
 		public int Delete(object key) {
 			//execute
 			var sql = string.Format("DELETE FROM {0} WHERE {1} = @0", TableName, PrimaryKeyField);
-			var result = 0;
+			int result;
 			using (var conn = OpenConnection()) {
 				using (var cmd = CreateCommand(sql, key)) {
 					cmd.Connection = conn;
@@ -356,7 +354,7 @@ namespace Massive {
 			//execute
 			var sql = string.Format("DELETE FROM {0} ", TableName);
 			sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
-			var result = 0;
+			int result;
 			using (var conn = OpenConnection()) {
 				using (var cmd = CreateCommand(sql, args)) {
 					cmd.Connection = conn;
