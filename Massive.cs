@@ -1,20 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.Configuration;
+using System.Data;
+using System.Data.Common;
+using System.Dynamic;
 using System.Linq;
 using System.Text;
-using System.Dynamic;
-//using System.Text.RegularExpressions;
-//using System.Globalization;
-using System.Collections.Specialized;
-using System.Data;
-using System.Configuration;
-using System.Data.Common;
 
 namespace Massive {
-
-
 	public static class ObjectExtensions {
-
 		/// <summary>
 		/// Extension method for adding in a bunch of parameters
 		/// </summary>
@@ -29,7 +24,6 @@ namespace Massive {
 		public static void AddParam(this DbCommand cmd, object item) {
 			var p = cmd.CreateParameter();
 			p.ParameterName = string.Format("@{0}", cmd.Parameters.Count);
-
 			//fix for NULLs as parameter values
 			if (item == null) {
 				p.Value = DBNull.Value;
@@ -44,23 +38,19 @@ namespace Massive {
 			}
 			cmd.Parameters.Add(p);
 		}
-
 		/// <summary>
 		/// Turns an IDataReader to a Dynamic list of things
 		/// </summary>
 		public static List<dynamic> ToExpandoList(this IDataReader rdr) {
 			var result = new List<dynamic>();
-
 			//work with the Expando as a Dictionary
 			while (rdr.Read()) {
 				dynamic e = new ExpandoObject();
 				var d = e as IDictionary<string, object>;
-				for (int i = 0; i < rdr.FieldCount; i++) {
+				for (int i = 0; i < rdr.FieldCount; i++)
 					d.Add(rdr.GetName(i), rdr[i]);
-				}
 				result.Add(e);
 			}
-
 			return result;
 		}
 		/// <summary>
@@ -70,34 +60,21 @@ namespace Massive {
 		/// <returns></returns>
 		public static dynamic ToExpando(this object o) {
 			var result = new ExpandoObject();
-
-			//work with the Expando as a Dictionary
-			var d = result as IDictionary<string, object>;
-			//shouldn't have to... but just in case
-			if (o.GetType() == typeof(ExpandoObject)) {
-				return o;
-			}
-
+			var d = result as IDictionary<string, object>; //work with the Expando as a Dictionary
+			if (o.GetType() == typeof(ExpandoObject)) return o; //shouldn't have to... but just in case
 			//special for form submissions
 			if (o.GetType() == typeof(NameValueCollection)) {
 				var nv = (NameValueCollection)o;
-				//there's a better way to do this... I just don't know what it is...
-				foreach (var item in nv.Keys) {
-					var key = item.ToString();
-					d.Add(key, nv.Get(key));
-				}
-
+				nv.Cast<string>().Select(key => new KeyValuePair<string, object>(key, nv[key])).ToList().ForEach(i => d.Add(i));
 			} else {
 				//assume it's a regular lovely object
 				var props = o.GetType().GetProperties();
 				foreach (var item in props) {
-					var val = item.GetValue(o, null);
-					d.Add(item.Name, val);
+					d.Add(item.Name, item.GetValue(o, null));
 				}
 			}
 			return result;
 		}
-
 		/// <summary>
 		/// Turns the object into a Dictionary
 		/// </summary>
@@ -106,16 +83,11 @@ namespace Massive {
 		public static IDictionary<string, object> ToDictionary(this object thingy) {
 			return (IDictionary<string, object>)thingy.ToExpando();
 		}
-
-
 	}
-
-
 	/// <summary>
 	/// A class that wraps your database table in Dynamic Funtime
 	/// </summary>
 	public abstract class DynamicModel : DynamicObject {
-
 		DbProviderFactory _factory;
 		string _connectionStringName;
 		string _connectionString;
@@ -130,10 +102,8 @@ namespace Massive {
 					}
 				}
 			}
-
 			return result;
 		}
-
 		/// <summary>
 		/// Creates a DBCommand that you can use for loving your database.
 		/// </summary>
@@ -173,55 +143,43 @@ namespace Massive {
 			_factory = DbProviderFactories.GetFactory(providerName);
 			_connectionString = ConfigurationManager.ConnectionStrings[_connectionStringName].ConnectionString;
 		}
-
 		string _primaryKeyField;
 		/// <summary>
 		/// Conventionally returns a PK field. The default is "ID" if you don't set one
 		/// </summary>
 		public string PrimaryKeyField {
-			get {
-				return string.IsNullOrEmpty(_primaryKeyField) ? /*a bit of convention here*/ "ID" : /*oh well - did our best*/ _primaryKeyField;
-			}
-			set {
-				_primaryKeyField = value;
-			}
+			get { return string.IsNullOrEmpty(_primaryKeyField) ? /*a bit of convention here*/ "ID" : /*oh well - did our best*/ _primaryKeyField; }
+			set { _primaryKeyField = value; }
 		}
-
 		/// <summary>
 		/// Conventionally introspects the object passed in for a field that 
 		/// looks like a PK. If you've named your PrimaryKeyField, this becomes easy
 		/// </summary>
 		public bool HasPrimaryKey(object o) {
-
 			var result = o.ToDictionary().ContainsKey(PrimaryKeyField);
 			return result;
 		}
-
 		/// <summary>
 		/// If the object passed in has a property with the same name as your PrimaryKeyField
 		/// it is returned here.
 		/// </summary>
 		public object GetPrimaryKey(object o) {
-
 			var d = o.ToDictionary();
 			object result = null;
 			d.TryGetValue(PrimaryKeyField, out result);
 			return result;
 		}
-
 		/// <summary>
 		/// The name of the Database table we're working with. This defaults to 
 		/// the class name - set this value if it's different
 		/// </summary>
 		public string TableName { get; set; }
-
 		/// <summary>
 		/// Adds a record to the database. You can pass in an Anonymous object, an ExpandoObject,
 		/// A regular old POCO, or a NameValueColletion from a Request.Form or Request.QueryString
 		/// </summary>
 		public dynamic Insert(object o) {
 			dynamic result = 0;
-
 			if (BeforeInsert(o)) {
 				using (var conn = OpenConnection()) {
 					using (var cmd = CreateInsertCommand(o)) {
@@ -239,11 +197,9 @@ namespace Massive {
 		/// </summary>
 		public DbCommand CreateInsertCommand(object o) {
 			DbCommand result = null;
-
 			//turn this into an expando - we'll need that for the validators
 			var expando = o.ToExpando();
 			var settings = (IDictionary<string, object>)expando;
-
 			var sbKeys = new StringBuilder();
 			var sbVals = new StringBuilder();
 			var stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2}); \r\nSELECT SCOPE_IDENTITY()";
@@ -255,7 +211,6 @@ namespace Massive {
 				sbVals.AppendFormat("@{0},", counter.ToString());
 				result.AddParam(item.Value);
 				counter++;
-
 			}
 			if (counter > 0) {
 				//strip off trailing commas
@@ -263,10 +218,7 @@ namespace Massive {
 				var vals = sbVals.ToString().Substring(0, sbVals.Length - 1);
 				var sql = string.Format(stub, TableName, keys, vals);
 				result.CommandText = sql;
-			} else {
-				throw new InvalidOperationException("Can't parse this object to the database - there are no properties set");
-			}
-
+			} else throw new InvalidOperationException("Can't parse this object to the database - there are no properties set");
 			return result;
 		}
 
@@ -275,7 +227,6 @@ namespace Massive {
 		/// </summary>
 		public DbCommand CreateUpdateCommand(object o, object key) {
 			var expando = o.ToExpando();
-
 			var settings = (IDictionary<string, object>)expando;
 			var sbKeys = new StringBuilder();
 			var stub = "UPDATE {0} SET {1} WHERE {2} = @{3}";
@@ -296,10 +247,7 @@ namespace Massive {
 				//strip the last commas
 				var keys = sbKeys.ToString().Substring(0, sbKeys.Length - 4);
 				result.CommandText = string.Format(stub, TableName, keys, PrimaryKeyField, counter);
-			} else {
-				//throw
-				throw new InvalidOperationException("No parsable object was sent in - could not divine any name/value pairs");
-			}
+			} else throw new InvalidOperationException("No parsable object was sent in - could not divine any name/value pairs");
 			return result;
 		}
 		/// <summary>
@@ -316,10 +264,8 @@ namespace Massive {
 						AfterUpdate(o);
 					}
 				}
-
 			}
 			return result;
-
 		}
 		/// <summary>
 		/// Updates a bunch of records in the database within a transaction. You can pass Anonymous objects, ExpandoObjects,
@@ -327,7 +273,6 @@ namespace Massive {
 		/// </summary>
 		public int InsertMany(IEnumerable<object> things) {
 			int result = 0;
-
 			using (var conn = OpenConnection()) {
 				using (var tx = conn.BeginTransaction()) {
 					foreach (var item in things) {
@@ -344,18 +289,14 @@ namespace Massive {
 					tx.Commit();
 				}
 			}
-
 			return result;
-
 		}
 		/// <summary>
 		/// Updates a bunch of records in the database within a transaction. You can pass Anonymous objects, ExpandoObjects,
 		/// Regular old POCOs - these all have to have a PK set
 		/// </summary>
 		public int UpdateMany(IEnumerable<object> things) {
-			//turn this into an expando - we'll need that for the validators
 			int result = 0;
-
 			using (var conn = OpenConnection()) {
 				using (var tx = conn.BeginTransaction()) {
 					foreach (var item in things) {
@@ -375,9 +316,7 @@ namespace Massive {
 					tx.Commit();
 				}
 			}
-
 			return result;
-
 		}
 		/// <summary>
 		/// If you're feeling lazy, or are just unsure about whether to use Update or Insert you can use
@@ -390,19 +329,11 @@ namespace Massive {
 			if (BeforeSave(o)) {
 				var expando = o.ToExpando();
 				//decide insert or update
-				if (HasPrimaryKey(expando)) {
-					result = Update(expando, GetPrimaryKey(o));
-
-				} else {
-					result = Insert(expando);
-				}
+				result = HasPrimaryKey(expando) ? Update(expando, GetPrimaryKey(o)) : Insert(expando);
 				AfterSave(o);
 			}
 			return result;
 		}
-
-
-
 		/// <summary>
 		/// Removes a record from the database
 		/// </summary>
@@ -418,17 +349,13 @@ namespace Massive {
 			}
 			return result;
 		}
-
 		/// <summary>
 		/// Removes one or more records from the DB according to the passed-in WHERE
 		/// </summary>
 		public dynamic Delete(string where, params object[] args) {
 			//execute
 			var sql = string.Format("DELETE FROM {0} ", TableName);
-			if (!where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase)) {
-				sql += "WHERE ";
-			}
-			sql += where;
+			sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
 			var result = 0;
 			using (var conn = OpenConnection()) {
 				using (var cmd = CreateCommand(sql, args)) {
@@ -438,63 +365,36 @@ namespace Massive {
 			}
 			return result;
 		}
-
 		/// <summary>
 		/// Returns all records complying with the passed-in WHERE clause and arguments, 
 		/// ordered as specified, limited (TOP) by limit.
 		/// </summary>
 		public IEnumerable<dynamic> All(string where = "", string orderBy = "", int limit = 0, params object[] args) {
-
 			string sql = limit > 0 ? "SELECT TOP " + limit + " * FROM {0} " : "SELECT * FROM {0} ";
-
-			if (!string.IsNullOrEmpty(where)) {
+			if (!string.IsNullOrEmpty(where))
 				sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
-			}
-
-			if (!String.IsNullOrEmpty(orderBy)) {
+			if (!String.IsNullOrEmpty(orderBy))
 				sql += orderBy.Trim().StartsWith("order by", StringComparison.CurrentCultureIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
-			}
-
 			return Query(string.Format(sql, TableName), args);
-
 		}
-
 		/// <summary>
 		/// Returns a single row from the database
 		/// </summary>
 		/// <returns>ExpandoObject</returns>
 		public dynamic Single(object key) {
-
 			var sql = string.Format("SELECT * FROM {0} WHERE {1} = @0", TableName, PrimaryKeyField);
-			var single = Query(sql, key).FirstOrDefault();
-			return single;
+			return Query(sql, key).FirstOrDefault();
 		}
 		#region hooks
 		//hooks for save routines
-		public virtual bool BeforeInsert(object o) {
-			return true;
-		}
-		public virtual bool BeforeUpdate(object o) {
-			return true;
-		}
-		public virtual bool BeforeSave(object o) {
-			return true;
-		}
-		public virtual bool BeforeDelete(object key) {
-			return true;
-		}
-		public virtual void AfterInsert(object o) {
-		}
-		public virtual void AfterUpdate(object o) {
-		}
-		public virtual void AfterSave(object o) {
-		}
-
-		public virtual void AfterDelete(object key) {
-
-		}
-
+		public virtual bool BeforeInsert(object o) { return true; }
+		public virtual bool BeforeUpdate(object o) { return true; }
+		public virtual bool BeforeSave(object o) { return true; }
+		public virtual bool BeforeDelete(object key) { return true; }
+		public virtual void AfterInsert(object o) { }
+		public virtual void AfterUpdate(object o) { }
+		public virtual void AfterSave(object o) { }
+		public virtual void AfterDelete(object key) { }
 		#endregion
-
 	}
 }
