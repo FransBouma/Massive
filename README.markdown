@@ -38,7 +38,7 @@ Now you can query thus:
 	//just grab from category 4. This uses named parameters
 	var productsFour = table.All(where: "WHERE categoryID=@0",args: 4);
 
-What you get back is IEnumerable<ExpandoObject> - meaning that it's malleable and exciting. It will take the shape of whatever you return in your query, and it will have properties and so on. You can assign events to it, you can create delegates on the fly. You can give it chocolate, and it will kiss you.
+What you get back is IEnumerable < ExpandoObject > - meaning that it's malleable and exciting. It will take the shape of whatever you return in your query, and it will have properties and so on. You can assign events to it, you can create delegates on the fly. You can give it chocolate, and it will kiss you.
 
 That's pretty much it. One thing I really like is the groovy DSL that Massive uses - it looks just like SQL. If you want, you can use this DSL to query the database:
 	var table = new Products();
@@ -73,7 +73,7 @@ Yippee Skippy! Now we get to the fun part - and one of the reasons I had to spen
 	//OH NO YOU DIDN't just pass in an integer inline without a parameter! 
 	//I think I might have... yes
 	var drinks = table.All("WHERE CategoryID = 8");
-	//what we get back here is an IEnumerable<ExpandoObject> - we can go to town
+	//what we get back here is an IEnumerable < ExpandoObject > - we can go to town
 	foreach(var item in drinks){
 		//turn them into Haack Snacks
 		item.CategoryID = 12;
