@@ -23,7 +23,8 @@ Code Please
 Let's say we have a table named "Products". You create a class like this:
     
 	public class Products:DynamicModel {
-        	public Products():base("northwind") {
+        	//you don't have to specify the connection - Massive will use the first one it finds in your config
+		public Products():base("northwind") {
             		PrimaryKeyField = "ProductID";
         	}
 
@@ -36,7 +37,7 @@ Now you can query thus:
 	//grab all the products
 	var products = table.All();
 	//just grab from category 4. This uses named parameters
-	var productsFour = table.All(where: "WHERE categoryID=@0",args: 4);
+	var productsFour = table.All(columns: "ProductName as Name", where: "WHERE categoryID=@0",args: 4);
 
 What you get back is IEnumerable < ExpandoObject > - meaning that it's malleable and exciting. It will take the shape of whatever you return in your query, and it will have properties and so on. You can assign events to it, you can create delegates on the fly. You can give it chocolate, and it will kiss you.
 
@@ -79,4 +80,4 @@ Yippee Skippy! Now we get to the fun part - and one of the reasons I had to spen
 		item.CategoryID = 12;
 	}
 	//Let's update these in bulk, in a transaction shall we?
-	table.UpdateMany(drinks);
+	table.Transact(drinks);
