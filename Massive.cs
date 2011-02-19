@@ -10,7 +10,6 @@ using System.Text;
 using System.Collections;
 
 namespace Massive {
-    
     public static class ObjectExtensions {
         /// <summary>
         /// Extension method for adding in a bunch of parameters
@@ -59,7 +58,6 @@ namespace Massive {
             }
             return result;
         }
-
         /// <summary>
         /// Turns the object into an ExpandoObject
         /// </summary>
@@ -94,7 +92,7 @@ namespace Massive {
 
         public DynamicModel(string connectionStringName= "", string tableName = "", string primaryKeyField ="") {
             TableName = tableName == "" ?  this.GetType().Name : tableName;
-            PrimaryKeyField = primaryKeyField;
+            PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
             if (connectionStringName == "")
                 connectionStringName = ConfigurationManager.ConnectionStrings[0].Name;
             var _providerName = "System.Data.SqlClient";
@@ -190,7 +188,6 @@ namespace Massive {
             var commands = BuildCommands(things);
             return Execute(commands);
         }
-
         public int Execute(DbCommand command) {
             return Execute(new DbCommand[] { command });
         }
@@ -211,11 +208,7 @@ namespace Massive {
             }
             return result;
         }
-        string _primaryKeyField;
-        public string PrimaryKeyField {
-            get { return string.IsNullOrEmpty(_primaryKeyField) ? /*a bit of convention here*/ "ID" : /*oh well - did our best*/ _primaryKeyField; }
-            set { _primaryKeyField = value; }
-        }
+        public string PrimaryKeyField { get; set; }
         /// <summary>
         /// Conventionally introspects the object passed in for a field that 
         /// looks like a PK. If you've named your PrimaryKeyField, this becomes easy
