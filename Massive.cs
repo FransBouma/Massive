@@ -7,6 +7,7 @@ using System.Data.Common;
 using System.Dynamic;
 using System.Linq;
 using System.Text;
+using System.Collections;
 
 namespace Massive {
     
@@ -25,11 +26,9 @@ namespace Massive {
         public static void AddParam(this DbCommand cmd, object item) {
             var p = cmd.CreateParameter();
             p.ParameterName = string.Format("@{0}", cmd.Parameters.Count);
-            //fix for NULLs as parameter values
             if (item == null) {
                 p.Value = DBNull.Value;
             } else {
-                //fix for Guids
                 if (item.GetType() == typeof(Guid)) {
                     p.Value = item.ToString();
                     p.DbType = DbType.String;
@@ -41,8 +40,6 @@ namespace Massive {
                     p.Value = item;
                 }
             }
-
-            //This will force the pre-compilation stuff to be honored
             //from DataChomp
             if (item.GetType() == typeof(string))
                 p.Size = 4000;
@@ -53,7 +50,6 @@ namespace Massive {
         /// </summary>
         public static List<dynamic> ToExpandoList(this IDataReader rdr) {
             var result = new List<dynamic>();
-            //work with the Expando as a Dictionary
             while (rdr.Read()) {
                 dynamic e = new ExpandoObject();
                 var d = e as IDictionary<string, object>;
@@ -64,20 +60,29 @@ namespace Massive {
             return result;
         }
         /// <summary>
+        /// Enumerates the reader yielding the result - thanks to Jeroen Haegebaert
+        /// </summary>
+        public static IEnumerable Enumerate(this IDataReader rdr) {
+            while (rdr.Read()) {
+                var e = new ExpandoObject();
+                var d = e as IDictionary<string,object>;
+                for (var i = 0; i < rdr.FieldCount; i++)
+                    d.Add(rdr.GetName(i), rdr[i]);
+                yield return e;
+
+            }
+        }
+        /// <summary>
         /// Turns the object into an ExpandoObject
         /// </summary>
-        /// <param name="o"></param>
-        /// <returns></returns>
         public static dynamic ToExpando(this object o) {
             var result = new ExpandoObject();
             var d = result as IDictionary<string, object>; //work with the Expando as a Dictionary
             if (o.GetType() == typeof(ExpandoObject)) return o; //shouldn't have to... but just in case
-            //special for form submissions
             if (o.GetType() == typeof(NameValueCollection)) {
                 var nv = (NameValueCollection)o;
                 nv.Cast<string>().Select(key => new KeyValuePair<string, object>(key, nv[key])).ToList().ForEach(i => d.Add(i));
             } else {
-                //assume it's a regular lovely object
                 var props = o.GetType().GetProperties();
                 foreach (var item in props) {
                     d.Add(item.Name, item.GetValue(o, null));
@@ -88,8 +93,6 @@ namespace Massive {
         /// <summary>
         /// Turns the object into a Dictionary
         /// </summary>
-        /// <param name="thingy"></param>
-        /// <returns></returns>
         public static IDictionary<string, object> ToDictionary(this object thingy) {
             return (IDictionary<string, object>)thingy.ToExpando();
         }
@@ -100,17 +103,12 @@ namespace Massive {
     public  class DynamicModel {
         DbProviderFactory _factory;
         string _connectionString;
-        /// <summary>
-        /// A bit of convenience here
-        /// </summary>
-        public DynamicModel():this(ConfigurationManager.ConnectionStrings[0].Name) { }
-        /// <summary>
-        /// Creates a slick, groovy little wrapper for your action
-        /// </summary>
-        /// <param name="connectionStringName"></param>
-        public DynamicModel(string connectionStringName) {
-            //can be overridden by property setting
-            TableName = this.GetType().Name;
+
+        public DynamicModel(string connectionStringName= "", string tableName = "", string primaryKeyField ="") {
+            TableName = tableName == "" ?  this.GetType().Name : tableName;
+            PrimaryKeyField = primaryKeyField;
+            if (connectionStringName == "")
+                connectionStringName = ConfigurationManager.ConnectionStrings[0].Name;
             var _providerName = "System.Data.SqlClient";
             if (ConfigurationManager.ConnectionStrings[connectionStringName] != null) {
                 _providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName ?? "System.Data.SqlClient";
@@ -126,10 +124,19 @@ namespace Massive {
         public IList<dynamic> Query(string sql, params object[] args) {
             var result = new List<dynamic>();
             using (var conn = OpenConnection()) {
-                var cmd = CreateCommand(sql, conn, args);
-                using (var rdr = cmd.ExecuteReader(CommandBehavior.CloseConnection)) {
+                using (var rdr = CreateCommand(sql, conn, args).ExecuteReader(CommandBehavior.CloseConnection)) {
                     result = rdr.ToExpandoList();
                 }
+            }
+            return result;
+        }
+        /// <summary>
+        /// Returns a single result
+        /// </summary>
+        public object Scalar(string sql, params object[] args) {
+            object result = null;
+            using (var conn = OpenConnection()) {
+                result = CreateCommand(sql, conn, args).ExecuteScalar();
             }
             return result;
         }  
@@ -176,9 +183,13 @@ namespace Massive {
         /// These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
         /// With a PK property (whatever PrimaryKeyField is set to) will be created at UPDATEs
         /// </summary>
-        public int Transact(params object[] things) {
+        public int Save(params object[] things) {
             var commands = BuildCommands(things);
             return Execute(commands);
+        }
+
+        public int Execute(DbCommand command) {
+            return Execute(new DbCommand[] { command });
         }
         /// <summary>
         /// Executes a series of DBCommands in a transaction
@@ -198,9 +209,6 @@ namespace Massive {
             return result;
         }
         string _primaryKeyField;
-        /// <summary>
-        /// Conventionally returns a PK field. The default is "ID" if you don't set one
-        /// </summary>
         public string PrimaryKeyField {
             get { return string.IsNullOrEmpty(_primaryKeyField) ? /*a bit of convention here*/ "ID" : /*oh well - did our best*/ _primaryKeyField; }
             set { _primaryKeyField = value; }
@@ -221,24 +229,18 @@ namespace Massive {
             o.ToDictionary().TryGetValue(PrimaryKeyField, out result);
             return result;
         }
-        /// <summary>
-        /// The name of the Database table we're working with. This defaults to 
-        /// the class name - set this value if it's different
-        /// </summary>
         public string TableName { get; set; }
         /// <summary>
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
         /// </summary>
         public DbCommand CreateInsertCommand(object o) {
             DbCommand result = null;
-            //turn this into an expando - we'll need that for the validators
             var expando = o.ToExpando();
             var settings = (IDictionary<string, object>)expando;
             var sbKeys = new StringBuilder();
             var sbVals = new StringBuilder();
             var stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2})";
             result = CreateCommand(stub,null);
-
             int counter = 0;
             foreach (var item in settings) {
                 sbKeys.AppendFormat("{0},", item.Key);
@@ -247,7 +249,6 @@ namespace Massive {
                 counter++;
             }
             if (counter > 0) {
-                //strip off trailing commas
                 var keys = sbKeys.ToString().Substring(0, sbKeys.Length - 1);
                 var vals = sbVals.ToString().Substring(0, sbVals.Length - 1);
                 var sql = string.Format(stub, TableName, keys, vals);
@@ -302,7 +303,6 @@ namespace Massive {
         /// </summary>
         public object Insert(object o) {
             dynamic result = 0;
-            //this has to happen in the same connection or we won't get the @@IDENTITY stuff back
             using (var conn = OpenConnection()) {
                 var cmd = CreateInsertCommand(o);
                 cmd.Connection = conn;
@@ -317,13 +317,13 @@ namespace Massive {
         /// A regular old POCO, or a NameValueCollection from a Request.Form or Request.QueryString
         /// </summary>
         public int Update(object o, object key) {
-            return Execute(new DbCommand[] { CreateUpdateCommand(o, key) });
+            return Execute(CreateUpdateCommand(o, key));
         }
         /// <summary>
         /// Removes one or more records from the DB according to the passed-in WHERE
         /// </summary>
         public int Delete(object key = null, string where = "", params object[] args) {
-            return Execute(new DbCommand[] { CreateDeleteCommand(where: where, key:key, args: args) });
+            return Execute(CreateDeleteCommand(where: where, key:key, args: args));
         }
         /// <summary>
         /// Returns all records complying with the passed-in WHERE clause and arguments, 
@@ -336,6 +336,32 @@ namespace Massive {
             if (!String.IsNullOrEmpty(orderBy))
                 sql += orderBy.Trim().StartsWith("order by", StringComparison.CurrentCultureIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
             return Query(string.Format(sql, columns,TableName), args);
+        }
+
+        /// <summary>
+        /// Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords.
+        /// </summary>
+        public dynamic Paged(string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage =1, params object[] args) {
+            dynamic result = new ExpandoObject();
+            var countSQL = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
+            if (String.IsNullOrEmpty(orderBy))
+                orderBy = PrimaryKeyField;
+            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3}) AS Paged ",columns,pageSize,orderBy,TableName);
+            var pageStart = currentPage * pageSize;
+            sql+= string.Format(" WHERE Row >={0} AND Row <={1}",pageStart, (pageStart + pageSize));
+            if (!string.IsNullOrEmpty(where)) {
+                if (where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase)) {
+                    where = where.Replace("where ", "and ");
+                }
+            }
+            sql += where;
+            countSQL += where;
+            result.TotalRecords = Scalar(countSQL,args);
+            result.TotalPages = result.TotalRecords / pageSize;
+            if (result.TotalRecords % pageSize > 0)
+                result.TotalPages += 1;
+            result.Items = Query(string.Format(sql, columns, TableName), args);
+            return result;
         }
         /// <summary>
         /// Returns a single row from the database
