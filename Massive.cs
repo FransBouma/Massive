@@ -59,19 +59,7 @@ namespace Massive {
             }
             return result;
         }
-        /// <summary>
-        /// Enumerates the reader yielding the result - thanks to Jeroen Haegebaert
-        /// </summary>
-        public static IEnumerable Enumerate(this IDataReader rdr) {
-            while (rdr.Read()) {
-                var e = new ExpandoObject();
-                var d = e as IDictionary<string,object>;
-                for (var i = 0; i < rdr.FieldCount; i++)
-                    d.Add(rdr.GetName(i), rdr[i]);
-                yield return e;
 
-            }
-        }
         /// <summary>
         /// Turns the object into an ExpandoObject
         /// </summary>
@@ -117,6 +105,21 @@ namespace Massive {
             }
             _factory = DbProviderFactories.GetFactory(_providerName);
             _connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
+        }
+        /// <summary>
+        /// Enumerates the reader yielding the result - thanks to Jeroen Haegebaert
+        /// </summary>
+        public IEnumerable<dynamic> Enumerate(string sql, params object[] args) {
+            using (var conn = OpenConnection()) {
+                var rdr = CreateCommand(sql, conn, args).ExecuteReader(CommandBehavior.CloseConnection);
+                while (rdr.Read()) {
+                    var e = new ExpandoObject();
+                    var d = e as IDictionary<string, object>;
+                    for (var i = 0; i < rdr.FieldCount; i++)
+                        d.Add(rdr.GetName(i), rdr[i]);
+                    yield return e;
+                }
+            }
         }
         /// <summary>
         /// Runs a query against the database
