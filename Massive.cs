@@ -34,6 +34,9 @@ namespace Massive {
                     p.Value = item.ToString();
                     p.DbType = DbType.String;
                     p.Size = 4000;
+                }else if(item.GetType()==typeof(ExpandoObject)){
+                    var d = (IDictionary<string, object>)item;
+                    p.Value = d.Values.FirstOrDefault();
                 } else {
                     p.Value = item;
                 }
@@ -97,12 +100,10 @@ namespace Massive {
     public  class DynamicModel {
         DbProviderFactory _factory;
         string _connectionString;
-
         /// <summary>
         /// A bit of convenience here
         /// </summary>
         public DynamicModel():this(ConfigurationManager.ConnectionStrings[0].Name) { }
-        
         /// <summary>
         /// Creates a slick, groovy little wrapper for your action
         /// </summary>
@@ -110,13 +111,13 @@ namespace Massive {
         public DynamicModel(string connectionStringName) {
             //can be overridden by property setting
             TableName = this.GetType().Name;
-            var providerName = "System.Data.SqlClient";
+            var _providerName = "System.Data.SqlClient";
             if (ConfigurationManager.ConnectionStrings[connectionStringName] != null) {
-                providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName ?? "System.Data.SqlClient";
+                _providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName ?? "System.Data.SqlClient";
             } else {
                 throw new InvalidOperationException("Can't find a connection string with the name '" + connectionStringName + "'");
             }
-            _factory = DbProviderFactories.GetFactory(providerName);
+            _factory = DbProviderFactories.GetFactory(_providerName);
             _connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
         }
         /// <summary>
@@ -125,37 +126,34 @@ namespace Massive {
         public IList<dynamic> Query(string sql, params object[] args) {
             var result = new List<dynamic>();
             using (var conn = OpenConnection()) {
-                using (var cmd = CreateCommand(sql, args)) {
-                    cmd.Connection = conn;
-                    using (var rdr = cmd.ExecuteReader(CommandBehavior.CloseConnection)) {
-                        result = rdr.ToExpandoList();
-                    }
+                var cmd = CreateCommand(sql, conn, args);
+                using (var rdr = cmd.ExecuteReader(CommandBehavior.CloseConnection)) {
+                    result = rdr.ToExpandoList();
                 }
             }
             return result;
-        }
+        }  
         /// <summary>
         /// Creates a DBCommand that you can use for loving your database.
         /// </summary>
-        DbCommand CreateCommand(string sql, params object[] args) {
+        DbCommand CreateCommand(string sql, DbConnection conn, params object[] args) {
             DbCommand result = null;
             result = _factory.CreateCommand();
+            result.Connection = conn;
             result.CommandText = sql;
             if (args.Length > 0)
                 result.AddParams(args);
             return result;
         }
-
         /// <summary>
         /// Returns and OpenConnection
         /// </summary>
-        DbConnection OpenConnection() {
+        public DbConnection OpenConnection() {
             var conn = _factory.CreateConnection();
             conn.ConnectionString = _connectionString;
             conn.Open();
             return conn;
         }
-
         /// <summary>
         /// Builds a set of Insert and Update commands based on the passed-on objects.
         /// These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
@@ -173,7 +171,6 @@ namespace Massive {
 
             return commands;
         }
-
         /// <summary>
         /// Executes a set of objects as Insert or Update commands based on their property settings, within a transaction.
         /// These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
@@ -200,7 +197,6 @@ namespace Massive {
             }
             return result;
         }
-
         string _primaryKeyField;
         /// <summary>
         /// Conventionally returns a PK field. The default is "ID" if you don't set one
@@ -231,22 +227,6 @@ namespace Massive {
         /// </summary>
         public string TableName { get; set; }
         /// <summary>
-        /// Adds a record to the database. You can pass in an Anonymous object, an ExpandoObject,
-        /// A regular old POCO, or a NameValueColletion from a Request.Form or Request.QueryString
-        /// </summary>
-        public dynamic Insert(object o) {
-            dynamic result = 0;
-            using (var conn = OpenConnection()) {
-                var cmd = CreateInsertCommand(o);
-                cmd.Connection = conn;
-                cmd.ExecuteNonQuery();
-                cmd.CommandText = "SELECT @@IDENTITY as ID";
-                result = cmd.ExecuteScalar();
-            }
-            return result;
-        }
-        
-        /// <summary>
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
         /// </summary>
         public DbCommand CreateInsertCommand(object o) {
@@ -257,7 +237,7 @@ namespace Massive {
             var sbKeys = new StringBuilder();
             var sbVals = new StringBuilder();
             var stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2})";
-            result = CreateCommand(stub);
+            result = CreateCommand(stub,null);
 
             int counter = 0;
             foreach (var item in settings) {
@@ -275,7 +255,6 @@ namespace Massive {
             } else throw new InvalidOperationException("Can't parse this object to the database - there are no properties set");
             return result;
         }
-
         /// <summary>
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
         /// </summary>
@@ -285,7 +264,7 @@ namespace Massive {
             var sbKeys = new StringBuilder();
             var stub = "UPDATE {0} SET {1} WHERE {2} = @{3}";
             var args = new List<object>();
-            var result = CreateCommand(stub);
+            var result = CreateCommand(stub,null);
             int counter = 0;
             foreach (var item in settings) {
                 var val = item.Value;
@@ -305,60 +284,46 @@ namespace Massive {
             return result;
         }
         /// <summary>
+        /// Removes one or more records from the DB according to the passed-in WHERE
+        /// </summary>
+        public DbCommand CreateDeleteCommand(string where = "", object key = null, params object[] args) {
+            var sql = string.Format("DELETE FROM {0} ", TableName);
+            if (key != null) {
+                sql += string.Format("WHERE {0}=@0", PrimaryKeyField);
+                args = new object[]{key};
+            } else if (!string.IsNullOrEmpty(where)) {
+                sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
+            } 
+            return CreateCommand(sql, null, args);
+        }
+        /// <summary>
+        /// Adds a record to the database. You can pass in an Anonymous object, an ExpandoObject,
+        /// A regular old POCO, or a NameValueColletion from a Request.Form or Request.QueryString
+        /// </summary>
+        public object Insert(object o) {
+            dynamic result = 0;
+            //this has to happen in the same connection or we won't get the @@IDENTITY stuff back
+            using (var conn = OpenConnection()) {
+                var cmd = CreateInsertCommand(o);
+                cmd.Connection = conn;
+                cmd.ExecuteNonQuery();
+                cmd.CommandText = "SELECT @@IDENTITY as newID";
+                result = cmd.ExecuteScalar();
+            }
+            return result;
+        }
+        /// <summary>
         /// Updates a record in the database. You can pass in an Anonymous object, an ExpandoObject,
         /// A regular old POCO, or a NameValueCollection from a Request.Form or Request.QueryString
         /// </summary>
         public int Update(object o, object key) {
-            //turn this into an expando - we'll need that for the validators
-            int result = 0;
-            using (var conn = OpenConnection()) {
-                using (var cmd = CreateUpdateCommand(o, key)) {
-                    result = cmd.ExecuteNonQuery();
-                }
-            }
-            return result;
-        }
-
-        public DbCommand CreateDeleteCommand(object key) {
-            var sql = string.Format("DELETE FROM {0} WHERE {1} = @0", TableName, PrimaryKeyField);
-            return CreateCommand(sql, key);
-
+            return Execute(new DbCommand[] { CreateUpdateCommand(o, key) });
         }
         /// <summary>
         /// Removes one or more records from the DB according to the passed-in WHERE
         /// </summary>
-        public DbCommand CreateDeleteCommand(string where, params object[] args) {
-            //execute
-            var sql = string.Format("DELETE FROM {0} ", TableName);
-            sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
-            return CreateCommand(sql, args);
-        }
-        /// <summary>
-        /// Removes a record from the database
-        /// </summary>
-        public int Delete(object key) {
-            //execute
-            var result = 0;
-            using (var conn = OpenConnection()) {
-                using (var cmd =CreateDeleteCommand(key)) {
-                    cmd.Connection = conn;
-                    result = cmd.ExecuteNonQuery();
-                }
-            }
-            return result;
-        }
-        /// <summary>
-        /// Removes one or more records from the DB according to the passed-in WHERE
-        /// </summary>
-        public int Delete(string where, params object[] args) {
-            //execute
-            var result = 0;
-            using (var conn = OpenConnection()) {
-                var cmd = CreateDeleteCommand(where,args);
-                cmd.Connection = conn;
-                result = cmd.ExecuteNonQuery();
-            }
-            return result;
+        public int Delete(object key = null, string where = "", params object[] args) {
+            return Execute(new DbCommand[] { CreateDeleteCommand(where: where, key:key, args: args) });
         }
         /// <summary>
         /// Returns all records complying with the passed-in WHERE clause and arguments, 
@@ -380,6 +345,5 @@ namespace Massive {
             var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", columns,TableName, PrimaryKeyField);
             return Query(sql, key).FirstOrDefault();
         }
-
     }
 }
