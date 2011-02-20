@@ -357,7 +357,6 @@ namespace Massive {
         /// <summary>
         /// Returns a single row from the database
         /// </summary>
-        /// <returns>ExpandoObject</returns>
         public dynamic Single(object key, string columns = "*") {
             var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", columns,TableName, PrimaryKeyField);
             return Fetch(sql, key).FirstOrDefault();
