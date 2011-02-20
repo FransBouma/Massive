@@ -355,11 +355,11 @@ namespace Massive {
             return result;
         }
         /// <summary>
-        /// Returns a single row from the database
+        /// Return a row by key. Throws an InvalidOperationException if more than one row satisfies the key condition. Returns null if a record with this key does not exist.
         /// </summary>
-        public dynamic Single(object key, string columns = "*") {
-            var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", columns,TableName, PrimaryKeyField);
-            return Fetch(sql, key).FirstOrDefault();
+        public dynamic FindByKey(object key, string columns = "*")
+        {
+            return All(string.Format("{0} = @0", PrimaryKeyField), limit: 2, columns: columns, args: key).SingleOrDefault();
         }
     }
 }
