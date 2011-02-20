@@ -30,7 +30,9 @@ Let's say we have a table named "Products". You create a class like this:
 
     	}
 
-This class inherits from DynamicModel, which does all the querying (that's the class you see above). We've told it how to connect (using the "northwind" connectionStringName), we've explicitly told it what the PK name is, and we can also tell it to use a TableName if we like. In addition there are a number of Callbacks you can use - like "AfterInsert()", "BeforeInsert()" and so on that fire ... guess when!
+You could also just instantiate it inline, as needed:
+	var tbl = new DynamicModel("northwind", tableName:"Products", primaryKeyField:"ProductID");
+
 
 Now you can query thus:
 	var table = new Products();
@@ -38,6 +40,16 @@ Now you can query thus:
 	var products = table.All();
 	//just grab from category 4. This uses named parameters
 	var productsFour = table.All(columns: "ProductName as Name", where: "WHERE categoryID=@0",args: 4);
+
+You can also run ad-hoc queries as needed:
+	var result = tbl.Query("SELECT * FROM Categories");
+
+This will pull categories and enumerate the results - streaming them as opposed to bulk-fetching them (thanks to Jeroen Haegebaert for the code). If you need to run a Fetch - you can:
+	var result = tbl.Fetch("SELECT * FROM Categories");
+
+If you want to have a Paged result set - you can:
+	var result = tbl.Paged(where: "UnitPrice > 20", currentPage:2, pageSize: 20);
+In this example, ALL of the arguments are optional and default to reasonable values. CurrentPage defaults to 1, pageSize defaults to 20, where defaults to nothing.
 
 What you get back is IEnumerable < ExpandoObject > - meaning that it's malleable and exciting. It will take the shape of whatever you return in your query, and it will have properties and so on. You can assign events to it, you can create delegates on the fly. You can give it chocolate, and it will kiss you.
 
@@ -80,4 +92,4 @@ Yippee Skippy! Now we get to the fun part - and one of the reasons I had to spen
 		item.CategoryID = 12;
 	}
 	//Let's update these in bulk, in a transaction shall we?
-	table.Transact(drinks);
+	table.Save(drinks);

@@ -107,7 +107,7 @@ namespace Massive {
         /// <summary>
         /// Enumerates the reader yielding the result - thanks to Jeroen Haegebaert
         /// </summary>
-        public IEnumerable<dynamic> Enumerate(string sql, params object[] args) {
+        public IEnumerable<dynamic> Query(string sql, params object[] args) {
             using (var conn = OpenConnection()) {
                 var rdr = CreateCommand(sql, conn, args).ExecuteReader(CommandBehavior.CloseConnection);
                 while (rdr.Read()) {
@@ -122,14 +122,8 @@ namespace Massive {
         /// <summary>
         /// Runs a query against the database
         /// </summary>
-        public IList<dynamic> Query(string sql, params object[] args) {
-            var result = new List<dynamic>();
-            using (var conn = OpenConnection()) {
-                using (var rdr = CreateCommand(sql, conn, args).ExecuteReader(CommandBehavior.CloseConnection)) {
-                    result = rdr.ToExpandoList();
-                }
-            }
-            return result;
+        public IList<dynamic> Fetch(string sql, params object[] args) {
+            return Query(sql, args).ToList<dynamic>();
         }
         /// <summary>
         /// Returns a single result
@@ -343,7 +337,7 @@ namespace Massive {
             if (String.IsNullOrEmpty(orderBy))
                 orderBy = PrimaryKeyField;
             var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3}) AS Paged ",columns,pageSize,orderBy,TableName);
-            var pageStart = currentPage * pageSize;
+            var pageStart = (currentPage -1) * pageSize;
             sql+= string.Format(" WHERE Row >={0} AND Row <={1}",pageStart, (pageStart + pageSize));
             if (!string.IsNullOrEmpty(where)) {
                 if (where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase)) {
@@ -365,7 +359,7 @@ namespace Massive {
         /// <returns>ExpandoObject</returns>
         public dynamic Single(object key, string columns = "*") {
             var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", columns,TableName, PrimaryKeyField);
-            return Query(sql, key).FirstOrDefault();
+            return Fetch(sql, key).FirstOrDefault();
         }
     }
 }
