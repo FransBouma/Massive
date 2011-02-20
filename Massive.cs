@@ -47,16 +47,16 @@ namespace Massive {
         /// <summary>
         /// Turns an IDataReader to a Dynamic list of things
         /// </summary>
-        public static List<dynamic> ToExpandoList(this IDataReader rdr) {
-            var result = new List<dynamic>();
+        public static IEnumerable<dynamic> EnumerateResults(this IDataReader rdr) {
             while (rdr.Read()) {
-                dynamic e = new ExpandoObject();
-                var d = e as IDictionary<string, object>;
+                IDictionary<string, object> e = new ExpandoObject();
                 for (int i = 0; i < rdr.FieldCount; i++)
-                    d.Add(rdr.GetName(i), rdr[i]);
-                result.Add(e);
+                {
+                    var value = rdr.IsDBNull(i) ? null : rdr[i];
+                    e.Add(rdr.GetName(i), value);
+                }
+                yield return e;
             }
-            return result;
         }
         /// <summary>
         /// Turns the object into an ExpandoObject
@@ -111,13 +111,7 @@ namespace Massive {
         public IEnumerable<dynamic> Query(string sql, params object[] args) {
             using (var conn = OpenConnection()) {
                 var rdr = CreateCommand(sql, conn, args).ExecuteReader(CommandBehavior.CloseConnection);
-                while (rdr.Read()) {
-                    var e = new ExpandoObject();
-                    var d = e as IDictionary<string, object>;
-                    for (var i = 0; i < rdr.FieldCount; i++)
-                        d.Add(rdr.GetName(i), rdr[i]);
-                    yield return e;
-                }
+                foreach (var record in rdr.EnumerateResults()) yield return record;
             }
         }
         /// <summary>
