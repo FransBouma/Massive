@@ -38,10 +38,10 @@ namespace Massive {
                 } else {
                     p.Value = item;
                 }
+                //from DataChomp
+                if (item.GetType() == typeof(string))
+                    p.Size = 4000;
             }
-            //from DataChomp
-            if (item.GetType() == typeof(string))
-                p.Size = 4000;
             cmd.Parameters.Add(p);
         }
         /// <summary>
