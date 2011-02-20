@@ -97,7 +97,8 @@ namespace Massive {
                 connectionStringName = ConfigurationManager.ConnectionStrings[0].Name;
             var _providerName = "System.Data.SqlClient";
             if (ConfigurationManager.ConnectionStrings[connectionStringName] != null) {
-                _providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName ?? "System.Data.SqlClient";
+                if (!string.IsNullOrEmpty(ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName))
+                    _providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
             } else {
                 throw new InvalidOperationException("Can't find a connection string with the name '" + connectionStringName + "'");
             }
