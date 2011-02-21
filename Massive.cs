@@ -230,7 +230,7 @@ namespace Massive {
             var settings = (IDictionary<string, object>)expando;
             var sbKeys = new StringBuilder();
             var sbVals = new StringBuilder();
-            var stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2})";
+            var stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2}); SELECT SCOPE_IDENTITY() as newID;";
             result = CreateCommand(stub,null);
             int counter = 0;
             foreach (var item in settings) {
@@ -297,8 +297,6 @@ namespace Massive {
             using (var conn = OpenConnection()) {
                 var cmd = CreateInsertCommand(o);
                 cmd.Connection = conn;
-                cmd.ExecuteNonQuery();
-                cmd.CommandText = "SELECT @@IDENTITY as newID";
                 result = cmd.ExecuteScalar();
             }
             return result;
