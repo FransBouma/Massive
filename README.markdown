@@ -4,7 +4,7 @@ Massive is a Single File Database Lover. Move over Bacon - Taste is got a new fr
 
 I'm sharing this with the world because we need another way to access data - don't you think? Truthfully - I wanted to see if I could flex the C# 4 stuff and
 run up data access with a single file. I used to have this down to 350 lines, but you also needed to reference WebMatrix.Data. Now you don't - this is ready to roll 
-and weighs in at a lovely 524 lines of code. Most of which is comments.
+and weighs in at a lovely 352 lines of code. Most of which is comments.
 
 How To Install It?
 ------------------
