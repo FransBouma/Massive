@@ -6,11 +6,11 @@ using System.Data;
 using System.Data.Common;
 using System.Dynamic;
 using System.Linq;
-using System.Text;
-using System.Collections;
+using System.Reflection;
 using System.Text.RegularExpressions;
 
 namespace Massive {
+
     public static class ObjectExtensions {
         /// <summary>
         /// Extension method for adding in a bunch of parameters
@@ -162,16 +162,15 @@ namespace Massive {
         /// With a PK property (whatever PrimaryKeyField is set to) will be created at UPDATEs
         /// </summary>
         public List<DbCommand> BuildCommands(params object[] things) {
-            var commands = new List<DbCommand>();
-            foreach (var item in things) {
-                if (HasPrimaryKey(item)) {
-                    commands.Add(CreateUpdateCommand(item,GetPrimaryKey(item)));
-                }else{
-                    commands.Add(CreateInsertCommand(item));
-                }
-            }
-
-            return commands;
+            return BuildCommandsWithWhitelist(null, things);
+        }
+        /// <summary>
+        /// Builds a set of Insert and Update commands based on the passed-on objects.
+        /// These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
+        /// With a PK property (whatever PrimaryKeyField is set to) will be created at UPDATEs
+        /// </summary>
+        public List<DbCommand> BuildCommandsWithWhitelist(object whitelist, params object[] things) {
+            return things.Select(item => HasPrimaryKey(item) ? CreateUpdateCommand(item,GetPrimaryKey(item),whitelist) : CreateInsertCommand(item,whitelist)).ToList();
         }
         /// <summary>
         /// Executes a set of objects as Insert or Update commands based on their property settings, within a transaction.
@@ -179,11 +178,13 @@ namespace Massive {
         /// With a PK property (whatever PrimaryKeyField is set to) will be created at UPDATEs
         /// </summary>
         public int Save(params object[] things) {
-            var commands = BuildCommands(things);
-            return Execute(commands);
+            return SaveWithWhitelist(null, things);
         }
-        public int Execute(DbCommand command) {
-            return Execute(new DbCommand[] { command });
+        public int SaveWithWhitelist(object whitelist, params object[] things) {
+            return Execute(BuildCommandsWithWhitelist(whitelist, things));
+        }
+        public int Execute(params DbCommand[] command) {
+            return Execute((IEnumerable<DbCommand>)command);
         }
         /// <summary>
         /// Executes a series of DBCommands in a transaction
@@ -223,56 +224,41 @@ namespace Massive {
         /// <summary>
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
         /// </summary>
-        public DbCommand CreateInsertCommand(object o) {
-            DbCommand result = null;
-            var expando = o.ToExpando();
-            var settings = (IDictionary<string, object>)expando;
-            var sbKeys = new StringBuilder();
-            var sbVals = new StringBuilder();
-            var stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2})";
-            result = CreateCommand(stub,null);
-            int counter = 0;
-            foreach (var item in settings) {
-                sbKeys.AppendFormat("{0},", item.Key);
-                sbVals.AppendFormat("@{0},", counter.ToString());
-                result.AddParam(item.Value);
-                counter++;
-            }
-            if (counter > 0) {
-                var keys = sbKeys.ToString().Substring(0, sbKeys.Length - 1);
-                var vals = sbVals.ToString().Substring(0, sbVals.Length - 1);
-                var sql = string.Format(stub, TableName, keys, vals);
-                result.CommandText = sql;
+        public DbCommand CreateInsertCommand(object o, object whitelist = null) {
+            const string stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2})";
+            var result = CreateCommand(stub,null);
+            var items = FilterItems(o, whitelist);
+            if (items.Any()) {
+                var keys = string.Join(",", items.Select(item => item.Key).ToArray());
+                var vals = string.Join(",", items.Select((_, i) => "@" + i.ToString()).ToArray());
+                result.AddParams(items.Select(item => item.Value));
+                result.CommandText = string.Format(stub, TableName, keys, vals);
             } else throw new InvalidOperationException("Can't parse this object to the database - there are no properties set");
             return result;
         }
         /// <summary>
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
         /// </summary>
-        public DbCommand CreateUpdateCommand(object o, object key) {
-            var expando = o.ToExpando();
-            var settings = (IDictionary<string, object>)expando;
-            var sbKeys = new StringBuilder();
-            var stub = "UPDATE {0} SET {1} WHERE {2} = @{3}";
-            var args = new List<object>();
+        public DbCommand CreateUpdateCommand(object o, object key, object whitelist = null) {
+            const string stub = "UPDATE {0} SET {1} WHERE {2} = @{3}";
             var result = CreateCommand(stub,null);
-            int counter = 0;
-            foreach (var item in settings) {
-                var val = item.Value;
-                if (!item.Key.Equals(PrimaryKeyField, StringComparison.CurrentCultureIgnoreCase) && item.Value != null) {
-                    result.AddParam(val);
-                    sbKeys.AppendFormat("{0} = @{1}, \r\n", item.Key, counter.ToString());
-                    counter++;
-                }
-            }
-            if (counter > 0) {
-                //add the key
-                result.AddParam(key);
-                //strip the last commas
-                var keys = sbKeys.ToString().Substring(0, sbKeys.Length - 4);
-                result.CommandText = string.Format(stub, TableName, keys, PrimaryKeyField, counter);
+            var items = FilterItems(o, whitelist);
+            if (items.Any()) {
+                var keys = string.Join(",", items.Select((item, i) => string.Format("{0} = @{1} \r\n", item.Key, i)).ToArray());
+                result.AddParams(items.Select(item => item.Value).Concat(new[]{key}));
+                result.CommandText = string.Format(stub, TableName, keys, PrimaryKeyField, items.Count);
             } else throw new InvalidOperationException("No parsable object was sent in - could not divine any name/value pairs");
             return result;
+        }
+        private IList<KeyValuePair<string,object>> FilterItems(object o, object whitelist) {
+            IEnumerable<KeyValuePair<string, object>> settings = o.ToDictionary();
+            if(whitelist != null) {
+                var whitelistValues = (whitelist is string) ? ((string)whitelist).Split(new[]{','}, StringSplitOptions.RemoveEmptyEntries) : 
+                                      (whitelist is Type)   ? ((Type)whitelist).GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.Instance).Select(prop => prop.Name)
+                                                            : (whitelist as IEnumerable<string>) ?? whitelist.ToDictionary().Select(kvp => kvp.Key);
+                settings = settings.Join(whitelistValues, s => s.Key.Trim(), w => w.Trim(), (s,_) => s, StringComparer.OrdinalIgnoreCase);
+            }
+            return settings.Where(item => !item.Key.Equals(PrimaryKeyField, StringComparison.CurrentCultureIgnoreCase) && item.Value != null).ToList();
         }
         /// <summary>
         /// Removes one or more records from the DB according to the passed-in WHERE
@@ -291,10 +277,10 @@ namespace Massive {
         /// Adds a record to the database. You can pass in an Anonymous object, an ExpandoObject,
         /// A regular old POCO, or a NameValueColletion from a Request.Form or Request.QueryString
         /// </summary>
-        public object Insert(object o) {
+        public object Insert(object o, object whitelist = null) {
             dynamic result = 0;
             using (var conn = OpenConnection()) {
-                var cmd = CreateInsertCommand(o);
+                var cmd = CreateInsertCommand(o, whitelist);
                 cmd.Connection = conn;
                 cmd.ExecuteNonQuery();
                 cmd.CommandText = "SELECT @@IDENTITY as newID";
@@ -306,8 +292,8 @@ namespace Massive {
         /// Updates a record in the database. You can pass in an Anonymous object, an ExpandoObject,
         /// A regular old POCO, or a NameValueCollection from a Request.Form or Request.QueryString
         /// </summary>
-        public int Update(object o, object key) {
-            return Execute(CreateUpdateCommand(o, key));
+        public int Update(object o, object key, object whitelist = null) {
+            return Execute(CreateUpdateCommand(o, key, whitelist));
         }
         /// <summary>
         /// Removes one or more records from the DB according to the passed-in WHERE
