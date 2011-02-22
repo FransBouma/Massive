@@ -8,6 +8,7 @@ using System.Dynamic;
 using System.Linq;
 using System.Text;
 using System.Collections;
+using System.Text.RegularExpressions;
 
 namespace Massive {
     public static class ObjectExtensions {
@@ -340,12 +341,13 @@ namespace Massive {
             var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3}) AS Paged ",columns,pageSize,orderBy,TableName);
             var pageStart = (currentPage -1) * pageSize;
             sql+= string.Format(" WHERE Row >={0} AND Row <={1}",pageStart, (pageStart + pageSize));
+            var pagedWhere = "";
             if (!string.IsNullOrEmpty(where)) {
                 if (where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase)) {
-                    where = where.Replace("where ", "and ");
+                    pagedWhere = Regex.Replace(where, "where ", "and ", RegexOptions.IgnoreCase);
                 }
             }
-            sql += where;
+            sql += pagedWhere;
             countSQL += where;
             result.TotalRecords = Scalar(countSQL,args);
             result.TotalPages = result.TotalRecords / pageSize;
