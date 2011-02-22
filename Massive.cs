@@ -37,18 +37,6 @@ namespace Massive {
             }
             cmd.Parameters.Add(p);
         }
-        /// <summary> Turns an IDataReader to a Dynamic list of things </summary>
-        public static List<dynamic> ToExpandoList(this IDataReader rdr) {
-            var result = new List<dynamic>();
-            while (rdr.Read()) {
-                dynamic e = new ExpandoObject();
-                var d = (IDictionary<string, object>)e;
-                for (int i = 0; i < rdr.FieldCount; i++)
-                    d.Add(rdr.GetName(i), rdr[i]);
-                result.Add(e);
-            }
-            return result;
-        }
         /// <summary> Turns the object into an ExpandoObject </summary>
         public static dynamic ToExpando(this object o) {
             if (o.GetType() == typeof(ExpandoObject)) return o; //shouldn't have to... but just in case
@@ -115,11 +103,9 @@ namespace Massive {
             using (var connection = OpenConnection())
             using (var rdr = CreateCommand(sql, args, connection: connection).ExecuteReader(CommandBehavior.CloseConnection)) {
                 while (rdr.Read()) {
-                    var e = new ExpandoObject();
-                    var d = (IDictionary<string, object>) e;
-                    for (var i = 0; i < rdr.FieldCount; i++)
-                        d.Add(rdr.GetName(i), rdr[i]);
-                    yield return e;
+                    var d = (IDictionary<string, object>) new ExpandoObject();
+                    for (var i = 0; i < rdr.FieldCount; i++) d.Add(rdr.GetName(i), rdr[i]);
+                    yield return d;
                 }
             }
         }
@@ -162,11 +148,9 @@ namespace Massive {
         /// <summary> Gets a table in the database. </summary>
         public DynamicModel GetTable(string tableName, string primaryKeyField = "") { return new DynamicModel(this, tableName, primaryKeyField); }
         /// <summary> Returns a dynamic database scoped to a single connection. </summary>
-        public IDynamicDatabase OpenConnection() {
-            return new DynamicConnection(_connectionString, _factory);
-        }
-        private T Do<T>(Func<IDynamicDatabase, T> work) { using (var conn = OpenConnection()) { return work(conn); } }
+        public IDynamicDatabase OpenConnection() { return new DynamicConnection(_connectionString, _factory); }
         public void Dispose() {}
+        private T Do<T>(Func<IDynamicDatabase, T> work) { using (var conn = OpenConnection()) { return work(conn); } }
     }
     /// <summary> A class that wraps your database table in Dynamic Funtime </summary>
     public class DynamicModel : IDynamicDatabase {
@@ -310,10 +294,8 @@ namespace Massive {
         }
         /// <summary> Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords. </summary>
         public dynamic Paged(string where = "", string orderBy = "", object columns = null, int pageSize = 20, int currentPage =1, params object[] args) {
-            dynamic result = new ExpandoObject();
             var countSQL = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
-            if (String.IsNullOrEmpty(orderBy))
-                orderBy = PrimaryKeyField;
+            if (String.IsNullOrEmpty(orderBy)) orderBy = PrimaryKeyField;
             var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {1}) AS Row, {0} FROM {2}) AS Paged ", string.Join(",", GetColumns(columns)), orderBy, TableName);
             var pageStart = (currentPage -1) * pageSize;
             sql+= string.Format(" WHERE Row >={0} AND Row <={1}",pageStart, (pageStart + pageSize));
@@ -323,12 +305,12 @@ namespace Massive {
             }
             sql += pagedWhere;
             countSQL += where;
-            result.TotalRecords = database.Scalar(countSQL,args);
-            result.TotalPages = result.TotalRecords / pageSize;
-            if (result.TotalRecords % pageSize > 0)
-                result.TotalPages += 1;
-            result.Items = database.Query(sql, args);
-            return result;
+            var totalRecords = (int)database.Scalar(countSQL, args);
+            return new {
+                TotalRecords = totalRecords,
+                TotalPages = (totalRecords + (pageSize - 1)) / pageSize,
+                Items = database.Query(sql, args),
+            };
         }
         /// <summary> Returns a single row from the database </summary>
         public dynamic Single(object key, object columns = null) {
