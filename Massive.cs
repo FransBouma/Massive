@@ -54,8 +54,7 @@ namespace Massive {
             if (o.GetType() == typeof(ExpandoObject)) return o; //shouldn't have to... but just in case
             var result = new ExpandoObject();
             var d = result as IDictionary<string, object>; //work with the Expando as a Dictionary
-            if (o.GetType() == typeof(NameValueCollection))
-            {
+            if (o.GetType() == typeof(NameValueCollection)) {
                 var nv = (NameValueCollection)o;
                 nv.Cast<string>().Select(key => new KeyValuePair<string, object>(key, nv[key])).ForEach(d.Add);
             } else {
@@ -113,9 +112,8 @@ namespace Massive {
             return result;
         }
         public IEnumerable<dynamic> Query(string sql, params object[] args) {
-            DbDataReader rdr;
-            using (var connection = OpenConnection()) {
-                rdr = CreateCommand(sql, args, connection: connection).ExecuteReader(CommandBehavior.CloseConnection);
+            using (var connection = OpenConnection())
+            using (var rdr = CreateCommand(sql, args, connection: connection).ExecuteReader(CommandBehavior.CloseConnection)) {
                 while (rdr.Read()) {
                     var e = new ExpandoObject();
                     var d = (IDictionary<string, object>) e;
@@ -271,9 +269,7 @@ namespace Massive {
                    (columns is Type)   ? ((Type)columns).GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.Instance).Select(prop => prop.Name)
                                        : (columns as IEnumerable<string>) ?? columns.ToDictionary().Select(kvp => kvp.Key);
         }
-        /// <summary>
-        /// Removes one or more records from the DB according to the passed-in WHERE
-        /// </summary>
+        /// <summary> Removes one or more records from the DB according to the passed-in WHERE </summary>
         public DynamicCommand CreateDeleteCommand(string where = "", object key = null, params object[] args) {
             var sql = string.Format("DELETE FROM {0} ", TableName);
             if (key != null) {
