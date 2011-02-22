@@ -252,13 +252,16 @@ namespace Massive {
         }
         private IList<KeyValuePair<string,object>> FilterItems(object o, object whitelist) {
             IEnumerable<KeyValuePair<string, object>> settings = o.ToDictionary();
-            if(whitelist != null) {
-                var whitelistValues = (whitelist is string) ? ((string)whitelist).Split(new[]{','}, StringSplitOptions.RemoveEmptyEntries) : 
-                                      (whitelist is Type)   ? ((Type)whitelist).GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.Instance).Select(prop => prop.Name)
-                                                            : (whitelist as IEnumerable<string>) ?? whitelist.ToDictionary().Select(kvp => kvp.Key);
-                settings = settings.Join(whitelistValues, s => s.Key.Trim(), w => w.Trim(), (s,_) => s, StringComparer.OrdinalIgnoreCase);
-            }
+            var whitelistValues = GetColumns(whitelist).Select(s => s.Trim());
+            if (!string.Equals("*", whitelistValues.FirstOrDefault(), StringComparison.Ordinal))
+                settings = settings.Join(whitelistValues, s => s.Key.Trim(), w => w, (s,_) => s, StringComparer.OrdinalIgnoreCase);
             return settings.Where(item => !item.Key.Equals(PrimaryKeyField, StringComparison.CurrentCultureIgnoreCase) && item.Value != null).ToList();
+        }
+        private static IEnumerable<string> GetColumns(object columns) {
+            return (columns == null)   ? new[]{"*"} :
+                   (columns is string) ? ((string)columns).Split(new[]{','}, StringSplitOptions.RemoveEmptyEntries) : 
+                   (columns is Type)   ? ((Type)columns).GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.Instance).Select(prop => prop.Name)
+                                       : (columns as IEnumerable<string>) ?? columns.ToDictionary().Select(kvp => kvp.Key);
         }
         /// <summary>
         /// Removes one or more records from the DB according to the passed-in WHERE
@@ -305,24 +308,24 @@ namespace Massive {
         /// Returns all records complying with the passed-in WHERE clause and arguments, 
         /// ordered as specified, limited (TOP) by limit.
         /// </summary>
-        public IEnumerable<dynamic> All(string where = "", string orderBy = "", int limit = 0, string columns = "*", params object[] args) {
+        public IEnumerable<dynamic> All(string where = "", string orderBy = "", int limit = 0, object columns = null, params object[] args) {
             string sql = limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1} " : "SELECT {0} FROM {1} ";
             if (!string.IsNullOrEmpty(where))
                 sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
             if (!String.IsNullOrEmpty(orderBy))
                 sql += orderBy.Trim().StartsWith("order by", StringComparison.CurrentCultureIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
-            return Query(string.Format(sql, columns,TableName), args);
+            return Query(string.Format(sql, string.Join(",", GetColumns(columns)), TableName), args);
         }
 
         /// <summary>
         /// Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords.
         /// </summary>
-        public dynamic Paged(string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage =1, params object[] args) {
+        public dynamic Paged(string where = "", string orderBy = "", object columns = null, int pageSize = 20, int currentPage =1, params object[] args) {
             dynamic result = new ExpandoObject();
             var countSQL = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
             if (String.IsNullOrEmpty(orderBy))
                 orderBy = PrimaryKeyField;
-            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {1}) AS Row, {0} FROM {2}) AS Paged ",columns,orderBy,TableName);
+            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {1}) AS Row, {0} FROM {2}) AS Paged ", string.Join(",", GetColumns(columns)), orderBy, TableName);
             var pageStart = (currentPage -1) * pageSize;
             sql+= string.Format(" WHERE Row >={0} AND Row <={1}",pageStart, (pageStart + pageSize));
             var pagedWhere = "";
@@ -337,14 +340,14 @@ namespace Massive {
             result.TotalPages = result.TotalRecords / pageSize;
             if (result.TotalRecords % pageSize > 0)
                 result.TotalPages += 1;
-            result.Items = Query(string.Format(sql, columns, TableName), args);
+            result.Items = Query(sql, args);
             return result;
         }
         /// <summary>
         /// Returns a single row from the database
         /// </summary>
-        public dynamic Single(object key, string columns = "*") {
-            var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", columns,TableName, PrimaryKeyField);
+        public dynamic Single(object key, object columns = null) {
+            var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", string.Join(",", GetColumns(columns)), TableName, PrimaryKeyField);
             return Fetch(sql, key).FirstOrDefault();
         }
     }
