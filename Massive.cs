@@ -227,7 +227,7 @@ namespace Massive {
         public DbCommand CreateInsertCommand(object o, object whitelist = null) {
             const string stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2})";
             var result = CreateCommand(stub,null);
-            var items = FilterItems(o, whitelist);
+            var items = FilterItems(o, whitelist).ToList();
             if (items.Any()) {
                 var keys = string.Join(",", items.Select(item => item.Key).ToArray());
                 var vals = string.Join(",", items.Select((_, i) => "@" + i.ToString()).ToArray());
@@ -242,7 +242,7 @@ namespace Massive {
         public DbCommand CreateUpdateCommand(object o, object key, object whitelist = null) {
             const string stub = "UPDATE {0} SET {1} WHERE {2} = @{3}";
             var result = CreateCommand(stub,null);
-            var items = FilterItems(o, whitelist);
+            var items = FilterItems(o, whitelist).Where(item => !item.Key.Equals(PrimaryKeyField, StringComparison.CurrentCultureIgnoreCase) && item.Value != null).ToList();
             if (items.Any()) {
                 var keys = string.Join(",", items.Select((item, i) => string.Format("{0} = @{1} \r\n", item.Key, i)).ToArray());
                 result.AddParams(items.Select(item => item.Value).Concat(new[]{key}));
@@ -250,12 +250,12 @@ namespace Massive {
             } else throw new InvalidOperationException("No parsable object was sent in - could not divine any name/value pairs");
             return result;
         }
-        private IList<KeyValuePair<string,object>> FilterItems(object o, object whitelist) {
+        private static IEnumerable<KeyValuePair<string,object>> FilterItems(object o, object whitelist) {
             IEnumerable<KeyValuePair<string, object>> settings = o.ToDictionary();
             var whitelistValues = GetColumns(whitelist).Select(s => s.Trim());
             if (!string.Equals("*", whitelistValues.FirstOrDefault(), StringComparison.Ordinal))
                 settings = settings.Join(whitelistValues, s => s.Key.Trim(), w => w, (s,_) => s, StringComparer.OrdinalIgnoreCase);
-            return settings.Where(item => !item.Key.Equals(PrimaryKeyField, StringComparison.CurrentCultureIgnoreCase) && item.Value != null).ToList();
+            return settings;
         }
         private static IEnumerable<string> GetColumns(object columns) {
             return (columns == null)   ? new[]{"*"} :
