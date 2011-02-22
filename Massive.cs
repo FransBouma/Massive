@@ -15,7 +15,7 @@ namespace Massive {
         /// <summary>
         /// Extension method for adding in a bunch of parameters
         /// </summary>
-        public static void AddParams(this DbCommand cmd, object[] args) {
+        public static void AddParams(this DbCommand cmd, IEnumerable<object> args) {
             foreach (var item in args) {
                 AddParam(cmd, item);
             }
@@ -52,7 +52,7 @@ namespace Massive {
             var result = new List<dynamic>();
             while (rdr.Read()) {
                 dynamic e = new ExpandoObject();
-                var d = e as IDictionary<string, object>;
+                var d = (IDictionary<string, object>)e;
                 for (int i = 0; i < rdr.FieldCount; i++)
                     d.Add(rdr.GetName(i), rdr[i]);
                 result.Add(e);
@@ -114,7 +114,7 @@ namespace Massive {
                 var rdr = CreateCommand(sql, conn, args).ExecuteReader(CommandBehavior.CloseConnection);
                 while (rdr.Read()) {
                     var e = new ExpandoObject();
-                    var d = e as IDictionary<string, object>;
+                    var d = (IDictionary<string, object>)e;
                     for (var i = 0; i < rdr.FieldCount; i++)
                         d.Add(rdr.GetName(i), rdr[i]);
                     yield return e;
@@ -131,11 +131,9 @@ namespace Massive {
         /// Returns a single result
         /// </summary>
         public object Scalar(string sql, params object[] args) {
-            object result = null;
             using (var conn = OpenConnection()) {
-                result = CreateCommand(sql, conn, args).ExecuteScalar();
+                return CreateCommand(sql, conn, args).ExecuteScalar();
             }
-            return result;
         }  
         /// <summary>
         /// Creates a DBCommand that you can use for loving your database.
@@ -217,7 +215,7 @@ namespace Massive {
         /// it is returned here.
         /// </summary>
         public object GetPrimaryKey(object o) {
-            object result = null;
+            object result;
             o.ToDictionary().TryGetValue(PrimaryKeyField, out result);
             return result;
         }
@@ -338,7 +336,7 @@ namespace Massive {
             var countSQL = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
             if (String.IsNullOrEmpty(orderBy))
                 orderBy = PrimaryKeyField;
-            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3}) AS Paged ",columns,pageSize,orderBy,TableName);
+            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {1}) AS Row, {0} FROM {2}) AS Paged ",columns,orderBy,TableName);
             var pageStart = (currentPage -1) * pageSize;
             sql+= string.Format(" WHERE Row >={0} AND Row <={1}",pageStart, (pageStart + pageSize));
             var pagedWhere = "";
