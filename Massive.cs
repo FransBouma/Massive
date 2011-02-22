@@ -202,23 +202,25 @@ namespace Massive {
                    (columns is Type)   ? ((Type)columns).GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.Instance).Select(prop => prop.Name)
                                        : (columns as IEnumerable<string>) ?? columns.ToDictionary().Select(kvp => kvp.Key);
         }
-        private DbCommand BuildCommand(string sql, object key = null, string where = "", params object[] args) {
+        private DbCommand BuildCommand(string sql, object key = null, object where = null, params object[] args) {
             var command = CreateCommand(sql);
-            if (key != null) {
-                where = string.Format("{0} = @1", PrimaryKeyField);
-                args = new[]{key};
-            }
+            if (key != null) where = new Dictionary<string, object> {{PrimaryKeyField, key}};
             if(where == null) return command;
-            if (!String.IsNullOrEmpty(where)) {
+            var whereString = where as string;
+            if (whereString != null) {
                 var whereRegex = new Regex(@"^where ", RegexOptions.IgnoreCase);
                 var keyword = whereRegex.IsMatch(sql.Trim()) ? " AND " : " WHERE ";
-                command.CommandText +=  keyword + where.Replace(where.Trim(), String.Empty);
+                command.CommandText +=  keyword + whereString.Replace(whereString.Trim(), String.Empty);
                 command.AddParams(args);
+            } else {
+                var dict = where.ToDictionary();
+                command.CommandText += " WHERE " + String.Join(" AND ", dict.Select((kvp, i) => String.Format("{0} = @{1}", kvp.Key, i)));
+                command.AddParams(dict.Select(kvp => kvp.Value));
             }
             return command;
         }
         /// <summary> Removes one or more records from the DB according to the passed-in WHERE </summary>
-        public DbCommand CreateDeleteCommand(object key = null, string where = "", params object[] args) {
+        public DbCommand CreateDeleteCommand(object key = null, object where = null, params object[] args) {
             return BuildCommand(string.Format("DELETE FROM {0}", TableName), key, where, args);
         }
         /// <summary>
@@ -232,11 +234,11 @@ namespace Massive {
         /// </summary>
         public int Update(object o, object key, object whitelist = null) { return Execute(CreateUpdateCommand(o, key, whitelist)); }
         /// <summary> Removes one or more records from the DB according to the passed-in WHERE </summary>
-        public int Delete(object key = null, string where = "", params object[] args) { return Execute(CreateDeleteCommand(key, where, args)); }
+        public int Delete(object key = null, object where = null, params object[] args) { return Execute(CreateDeleteCommand(key, where, args)); }
         /// <summary>
         /// Returns all records complying with the passed-in WHERE clause and arguments,  ordered as specified, limited (TOP) by limit.
         /// </summary>
-        public IEnumerable<dynamic> All(string where = "", string orderBy = "", int limit = 0, object columns = null, params object[] args) {
+        public IEnumerable<dynamic> All(object where = null, string orderBy = "", int limit = 0, object columns = null, params object[] args) {
             var sql = String.Format(limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1}" : "SELECT {0} FROM {1}", String.Join(",", GetColumns(columns)), TableName);
             var command = BuildCommand(sql, where: where, args: args);
             if (!String.IsNullOrEmpty(orderBy))
@@ -244,7 +246,7 @@ namespace Massive {
             return Query(command);
         }
         /// <summary> Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords. </summary>
-        public dynamic Paged(string where = "", string orderBy = "", object columns = null, int pageSize = 20, int currentPage =1, params object[] args) {
+        public dynamic Paged(object where = null, string orderBy = "", object columns = null, int pageSize = 20, int currentPage =1, params object[] args) {
             var countSql = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
             if (String.IsNullOrEmpty(orderBy)) orderBy = PrimaryKeyField;
             var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {1}) AS Row, {0} FROM {2}) AS Paged", string.Join(",", GetColumns(columns)), orderBy, TableName);
@@ -256,7 +258,7 @@ namespace Massive {
             return new { TotalRecords = totalRecords, TotalPages = (totalRecords + (pageSize - 1)) / pageSize, Items = Query(queryCommand) }.ToExpando();
         }
         /// <summary> Returns a single row from the database </summary>
-        public dynamic Single(object key = null, string where = "", object columns = null) {
+        public dynamic Single(object key = null, object where = null, object columns = null) {
             var sql = string.Format("SELECT {0} FROM {1}", string.Join(",", GetColumns(columns)), TableName);
             return Query(BuildCommand(sql, key, where)).FirstOrDefault();
         }
