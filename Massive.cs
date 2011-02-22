@@ -386,7 +386,6 @@ namespace Massive {
                 this.Dictionary.Add(binder.Name, value);
             else
                 this.Dictionary[binder.Name] = value;
-
             return true;
         }
         public override bool TryInvokeMember(InvokeMemberBinder binder, object[] args, out object result) {
@@ -404,7 +403,6 @@ namespace Massive {
                 this.Dictionary.Remove(binder.Name);
                 return true;
             }
-
             return base.TryDeleteMember(binder);
         }
         public IEnumerator<KeyValuePair<string, object>> GetEnumerator() {
