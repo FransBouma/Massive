@@ -33,7 +33,7 @@ namespace Massive {
                     p.Value = item.ToString();
                     p.DbType = DbType.String;
                     p.Size = 4000;
-                }else if(item.GetType()==typeof(ExpandoObject)){
+                }else if(item.GetType()==typeof(MassiveExpando)){
                     var d = (IDictionary<string, object>)item;
                     p.Value = d.Values.FirstOrDefault();
                 } else {
@@ -51,7 +51,7 @@ namespace Massive {
         public static List<dynamic> ToExpandoList(this IDataReader rdr) {
             var result = new List<dynamic>();
             while (rdr.Read()) {
-                dynamic e = new ExpandoObject();
+                dynamic e = new MassiveExpando();
                 var d = e as IDictionary<string, object>;
                 for (int i = 0; i < rdr.FieldCount; i++)
                     d.Add(rdr.GetName(i), rdr[i]);
@@ -60,12 +60,12 @@ namespace Massive {
             return result;
         }
         /// <summary>
-        /// Turns the object into an ExpandoObject
+        /// Turns the object into an MassiveExpando
         /// </summary>
         public static dynamic ToExpando(this object o) {
-            var result = new ExpandoObject();
+            var result = new MassiveExpando();
             var d = result as IDictionary<string, object>; //work with the Expando as a Dictionary
-            if (o.GetType() == typeof(ExpandoObject)) return o; //shouldn't have to... but just in case
+            if (o.GetType() == typeof(MassiveExpando)) return o; //shouldn't have to... but just in case
             if (o.GetType() == typeof(NameValueCollection)) {
                 var nv = (NameValueCollection)o;
                 nv.Cast<string>().Select(key => new KeyValuePair<string, object>(key, nv[key])).ToList().ForEach(i => d.Add(i));
@@ -113,7 +113,7 @@ namespace Massive {
             using (var conn = OpenConnection()) {
                 var rdr = CreateCommand(sql, conn, args).ExecuteReader(CommandBehavior.CloseConnection);
                 while (rdr.Read()) {
-                    var e = new ExpandoObject();
+                    var e = new MassiveExpando();
                     var d = e as IDictionary<string, object>;
                     for (var i = 0; i < rdr.FieldCount; i++)
                         d.Add(rdr.GetName(i), rdr[i]);
@@ -290,7 +290,7 @@ namespace Massive {
             return CreateCommand(sql, null, args);
         }
         /// <summary>
-        /// Adds a record to the database. You can pass in an Anonymous object, an ExpandoObject,
+        /// Adds a record to the database. You can pass in an Anonymous object, an MassiveExpando,
         /// A regular old POCO, or a NameValueColletion from a Request.Form or Request.QueryString
         /// </summary>
         public object Insert(object o) {
@@ -305,7 +305,7 @@ namespace Massive {
             return result;
         }
         /// <summary>
-        /// Updates a record in the database. You can pass in an Anonymous object, an ExpandoObject,
+        /// Updates a record in the database. You can pass in an Anonymous object, an MassiveExpando,
         /// A regular old POCO, or a NameValueCollection from a Request.Form or Request.QueryString
         /// </summary>
         public int Update(object o, object key) {
@@ -334,7 +334,7 @@ namespace Massive {
         /// Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords.
         /// </summary>
         public dynamic Paged(string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage =1, params object[] args) {
-            dynamic result = new ExpandoObject();
+            dynamic result = new MassiveExpando();
             var countSQL = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
             if (String.IsNullOrEmpty(orderBy))
                 orderBy = PrimaryKeyField;
@@ -362,6 +362,134 @@ namespace Massive {
         public dynamic Single(object key, string columns = "*") {
             var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", columns,TableName, PrimaryKeyField);
             return Fetch(sql, key).FirstOrDefault();
+        }
+    }
+
+    public class MassiveExpando : DynamicObject, IDictionary<string, object>
+    {
+        private IDictionary<string, object> Dictionary = new Dictionary<string, object>(StringComparer.InvariantCultureIgnoreCase);
+
+        public void Add(KeyValuePair<string, object> item)
+        {
+            Dictionary.Add(item);
+        }
+
+        public void Clear()
+        {
+            Dictionary.Clear();
+        }
+
+        public bool Contains(KeyValuePair<string, object> item)
+        {
+            return Dictionary.Contains(item);
+        }
+
+        public void CopyTo(KeyValuePair<string, object>[] array, int arrayIndex)
+        {
+            Dictionary.CopyTo(array, arrayIndex);
+        }
+
+        public bool Remove(KeyValuePair<string, object> item)
+        {
+            return Dictionary.Remove(item);
+        }
+
+        public int Count { get { return this.Dictionary.Keys.Count; } }
+
+        public bool IsReadOnly
+        {
+            get { return Dictionary.IsReadOnly; }
+        }
+
+        public override bool TryGetMember(GetMemberBinder binder, out object result)
+        {
+            if (this.Dictionary.ContainsKey(binder.Name))
+            {
+                result = this.Dictionary[binder.Name];
+                return true;
+            }
+            return base.TryGetMember(binder, out result);
+        }
+
+        public override bool TrySetMember(SetMemberBinder binder, object value)
+        {
+            if (!this.Dictionary.ContainsKey(binder.Name))
+            {
+                this.Dictionary.Add(binder.Name, value);
+            }
+            else
+                this.Dictionary[binder.Name] = value;
+
+            return true;
+        }
+
+        public override bool TryInvokeMember(InvokeMemberBinder binder, object[] args,
+        out object result)
+        {
+            if (this.Dictionary.ContainsKey(binder.Name) && this.Dictionary[binder.Name] is Delegate)
+            {
+                Delegate del = this.Dictionary[binder.Name] as Delegate;
+                result = del.DynamicInvoke(args);
+                return true;
+            }
+            return base.TryInvokeMember(binder, args, out result);
+        }
+
+        public override bool TryDeleteMember(DeleteMemberBinder binder)
+        {
+            if (this.Dictionary.ContainsKey(binder.Name))
+            {
+                this.Dictionary.Remove(binder.Name);
+                return true;
+            }
+
+            return base.TryDeleteMember(binder);
+        }
+
+        public IEnumerator<KeyValuePair<string, object>> GetEnumerator()
+        {
+            return Dictionary.GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+
+        public bool ContainsKey(string key)
+        {
+            return Dictionary.ContainsKey(key);
+        }
+
+        public void Add(string key, object value)
+        {
+            Dictionary.Add(key, value);
+        }
+
+        public bool Remove(string key)
+        {
+            return Dictionary.Remove(key);
+        }
+
+        public bool TryGetValue(string key, out object value)
+        {
+            return Dictionary.TryGetValue(key, out value);
+        }
+
+        public object this[string key]
+        {
+            get { return Dictionary[key]; }
+            set { Dictionary[key] = value; }
+        }
+
+        public ICollection<string> Keys
+        {
+            get { return Dictionary.Keys; }
+        }
+
+        public ICollection<object> Values
+        {
+            get { return Dictionary.Values; }
         }
     }
 }
