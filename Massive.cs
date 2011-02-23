@@ -338,16 +338,15 @@ namespace Massive {
             var countSQL = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
             if (String.IsNullOrEmpty(orderBy))
                 orderBy = PrimaryKeyField;
-            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3}) AS Paged ",columns,pageSize,orderBy,TableName);
-            var pageStart = (currentPage -1) * pageSize;
-            sql+= string.Format(" WHERE Row >={0} AND Row <={1}",pageStart, (pageStart + pageSize));
-            var pagedWhere = "";
+
             if (!string.IsNullOrEmpty(where)) {
-                if (where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase)) {
-                    pagedWhere = Regex.Replace(where, "where ", "and ", RegexOptions.IgnoreCase);
+                if (!where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase)) {
+                    where = "WHERE " + where;
                 }
             }
-            sql += pagedWhere;
+            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3} {4}) AS Paged ",columns,pageSize,orderBy,TableName, where);
+            var pageStart = (currentPage -1) * pageSize;
+            sql+= string.Format(" WHERE Row >={0} AND Row <={1}",pageStart, (pageStart + pageSize));
             countSQL += where;
             result.TotalRecords = Scalar(countSQL,args);
             result.TotalPages = result.TotalRecords / pageSize;
