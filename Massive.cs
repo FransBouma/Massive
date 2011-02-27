@@ -132,24 +132,19 @@ namespace Massive {
     }
     /// <summary> A class that wraps your database table in Dynamic Funtime </summary>
     public class DynamicModel {
-        private readonly DynamicDatabase database;
         public DynamicModel(string connectionStringName = "", string tableName = "", string primaryKeyField = "") 
             : this(new DynamicDatabase(connectionStringName), tableName, primaryKeyField) { }
         public DynamicModel(DynamicDatabase database, string tableName = "", string primaryKeyField ="") {
-            this.database = database ?? new DynamicDatabase();
+            this.Database = database ?? new DynamicDatabase();
             TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
         }
-        /// <summary> Enumerates the reader yielding the result - thanks to Jeroen Haegebaert </summary>
-        public IEnumerable<dynamic> Query(string sql, params object[] args) { return database.Query(sql, args); }
-        /// <summary>  Runs a query against the database. </summary>
-        public IList<dynamic> Fetch(string sql, params object[] args) { return database.Fetch(sql, args); }
-        /// <summary> Returns a single result </summary>
-        public object Scalar(string sql, params object[] args) { return database.Scalar(sql, args); }
-        /// <summary> Executes a series of DBCommands in a transaction </summary>
-        public int Execute(params DynamicCommand[] commands) { return database.Execute(commands); }
-        /// <summary> Executes a series of DBCommands in a transaction </summary>
-        public int Execute(IEnumerable<DynamicCommand> commands) { return database.Execute(commands); }
+        /// <summary> Gets the database for this model. </summary>
+        public DynamicDatabase Database { get; private set; }
+        /// <summary> Gets or sets the primary key for this model. </summary>
+        public string PrimaryKeyField { get; set; }
+        /// <summary> Gets or sets the table name for this model. </summary>
+        public string TableName { get; set; }
         /// <summary>
         /// Builds a set of Insert and Update commands based on the passed-on objects.
         /// These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
@@ -176,9 +171,8 @@ namespace Massive {
         /// With a PK property (whatever PrimaryKeyField is set to) will be created at UPDATEs
         /// </summary>
         public int SaveWithWhitelist(object whitelist, params object[] things) {
-            return database.Execute(BuildCommandsWithWhitelist(whitelist, things));
+            return Database.Execute(BuildCommandsWithWhitelist(whitelist, things));
         }
-        public string PrimaryKeyField { get; set; }
         /// <summary>
         /// Conventionally introspects the object passed in for a field that 
         /// looks like a PK. If you've named your PrimaryKeyField, this becomes easy
@@ -193,7 +187,6 @@ namespace Massive {
             o.ToDictionary().TryGetValue(PrimaryKeyField, out result);
             return result;
         }
-        public string TableName { get; set; }
         /// <summary>
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
         /// </summary>
@@ -249,14 +242,14 @@ namespace Massive {
         /// Adds a record to the database. You can pass in an Anonymous object, an ExpandoObject,
         /// A regular old POCO, or a NameValueColletion from a Request.Form or Request.QueryString
         /// </summary>
-        public object Insert(object o, object whitelist = null) { return database.Scalar(CreateInsertCommand(o, whitelist)); }
+        public object Insert(object o, object whitelist = null) { return Database.Scalar(CreateInsertCommand(o, whitelist)); }
         /// <summary>
         /// Updates a record in the database. You can pass in an Anonymous object, an ExpandoObject,
         /// A regular old POCO, or a NameValueCollection from a Request.Form or Request.QueryString
         /// </summary>
-        public int Update(object o, object key, object whitelist = null) { return database.Execute(CreateUpdateCommand(o, key, whitelist)); }
+        public int Update(object o, object key, object whitelist = null) { return Database.Execute(CreateUpdateCommand(o, key, whitelist)); }
         /// <summary> Removes one or more records from the DB according to the passed-in WHERE </summary>
-        public int Delete(object key = null, string where = "", params object[] args) { return database.Execute(CreateDeleteCommand(where, key, args)); }
+        public int Delete(object key = null, string where = "", params object[] args) { return Database.Execute(CreateDeleteCommand(where, key, args)); }
         /// <summary>
         /// Returns all records complying with the passed-in WHERE clause and arguments, 
         /// ordered as specified, limited (TOP) by limit.
@@ -267,7 +260,7 @@ namespace Massive {
                 sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
             if (!String.IsNullOrEmpty(orderBy))
                 sql += orderBy.Trim().StartsWith("order by", StringComparison.CurrentCultureIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
-            return database.Query(string.Format(sql, string.Join(",", GetColumns(columns)), TableName), args);
+            return Database.Query(string.Format(sql, string.Join(",", GetColumns(columns)), TableName), args);
         }
         /// <summary> Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords. </summary>
         public dynamic Paged(string where = "", string orderBy = "", object columns = null, int pageSize = 20, int currentPage =1, params object[] args) {
@@ -280,17 +273,17 @@ namespace Massive {
                     sql += Regex.Replace(where, "where ", "and ", RegexOptions.IgnoreCase);
             }
             countSQL += where;
-            var totalRecords = (int)database.Scalar(countSQL, args);
+            var totalRecords = (int)Database.Scalar(countSQL, args);
             return new {
                 TotalRecords = totalRecords,
                 TotalPages = (totalRecords + (pageSize - 1)) / pageSize,
-                Items = database.Query(sql, args),
+                Items = Database.Query(sql, args),
             };
         }
         /// <summary> Returns a single row from the database </summary>
         public dynamic Single(object key, object columns = null) {
             var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", string.Join(",", GetColumns(columns)), TableName, PrimaryKeyField);
-            return database.Fetch(sql, key).FirstOrDefault();
+            return Database.Fetch(sql, key).FirstOrDefault();
         }
     }
 }
