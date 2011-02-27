@@ -55,10 +55,19 @@ namespace Massive {
         public static IDictionary<string, object> ToDictionary(this object thingy) { return (IDictionary<string, object>)thingy.ToExpando(); }
     }
     /// <summary> A class that represents a sql command. </summary>
-    public class DynamicCommand
-    {
+    public class DynamicCommand {
         public string Sql { get; set; }
         public IEnumerable<object> Args { get; set; }
+    }
+    public class DynamicPagedResult {
+        public DynamicPagedResult(int totalRecords, int totalPages, dynamic items) {
+            TotalRecords = totalRecords;
+            TotalPages = totalPages;
+            Items = items;
+        }
+        public int TotalRecords { get; private set; }
+        public int TotalPages { get; private set; }
+        public IEnumerable<dynamic> Items { get; private set; }
     }
     /// <summary> A class that wraps your database in Dynamic Funtime </summary>
     public class DynamicDatabase {
@@ -263,7 +272,7 @@ namespace Massive {
             return Database.Query(string.Format(sql, string.Join(",", GetColumns(columns)), TableName), args);
         }
         /// <summary> Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords. </summary>
-        public dynamic Paged(string where = "", string orderBy = "", object columns = null, int pageSize = 20, int currentPage =1, params object[] args) {
+        public DynamicPagedResult Paged(string where = "", string orderBy = "", object columns = null, int pageSize = 20, int currentPage =1, params object[] args) {
             var countSQL = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
             if (String.IsNullOrEmpty(orderBy)) orderBy = PrimaryKeyField;
             var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {1}) AS Row, {0} FROM {2}) AS Paged ", string.Join(",", GetColumns(columns)), orderBy, TableName);
@@ -274,11 +283,7 @@ namespace Massive {
             }
             countSQL += where;
             var totalRecords = (int)Database.Scalar(countSQL, args);
-            return new {
-                TotalRecords = totalRecords,
-                TotalPages = (totalRecords + (pageSize - 1)) / pageSize,
-                Items = Database.Query(sql, args),
-            };
+            return new DynamicPagedResult(totalRecords, (totalRecords + (pageSize - 1)) / pageSize, Database.Query(sql, args));
         }
         /// <summary> Returns a single row from the database </summary>
         public dynamic Single(object key, object columns = null) {
