@@ -54,75 +54,14 @@ namespace Massive {
         /// <summary> Turns the object into a Dictionary </summary>
         public static IDictionary<string, object> ToDictionary(this object thingy) { return (IDictionary<string, object>)thingy.ToExpando(); }
     }
-    public interface IDynamicDatabase : IDisposable {
-        /// <summary>
-        /// Enumerates the reader yielding the result - thanks to Jeroen Haegebaert
-        /// A new connection is created for this method.
-        /// </summary>
-        IEnumerable<object> Query(string sql, params object[] args);
-        /// <summary>  Runs a query against the database. A new connection is created for this method. </summary>
-        IList<object> Fetch(string sql, params object[] args);
-        /// <summary> Returns a single result </summary>
-        object Scalar(string sql, params object[] args);
-        /// <summary> Executes a series of DBCommands in a transaction </summary>
-        int Execute(params DynamicCommand[] commands);
-        /// <summary> Executes a series of DBCommands in a transaction </summary>
-        int Execute(IEnumerable<DynamicCommand> commands);
-    }
-    public class DynamicCommand {
+    /// <summary> A class that represents a sql command. </summary>
+    public class DynamicCommand
+    {
         public string Sql { get; set; }
         public IEnumerable<object> Args { get; set; }
     }
-    /// <summary> A class that wraps your connection in Dynamic Funtime </summary>
-    public class DynamicConnection : IDynamicDatabase {
-        private readonly string _connectionString;
-        private readonly DbProviderFactory _factory;
-        private readonly Lazy<DbConnection> _connection;
-        public DynamicConnection(string connectionString, DbProviderFactory factory) {
-            _connectionString = connectionString;
-            _factory = factory;
-            _connection = new Lazy<DbConnection>(OpenConnection);
-        }
-        private DbConnection Connection { get { return _connection.Value; } }
-        private DbConnection OpenConnection() {
-            var conn = _factory.CreateConnection();
-            conn.ConnectionString = _connectionString;
-            conn.Open();
-            return conn;
-        }
-        /// <summary> Creates a DBCommand that you can use for loving your database. </summary>
-        private DbCommand CreateCommand(string sql, IEnumerable<object> args, DbTransaction tx = null, DbConnection connection = null) {
-            var result = _factory.CreateCommand();
-            result.Connection = connection ?? Connection;
-            result.CommandText = sql;
-            result.Transaction = tx;
-            result.AddParams(args);
-            return result;
-        }
-        public IEnumerable<dynamic> Query(string sql, params object[] args) {
-            using (var connection = OpenConnection())
-            using (var rdr = CreateCommand(sql, args, connection: connection).ExecuteReader(CommandBehavior.CloseConnection)) {
-                while (rdr.Read()) {
-                    var d = (IDictionary<string, object>) new ExpandoObject();
-                    for (var i = 0; i < rdr.FieldCount; i++) d.Add(rdr.GetName(i), rdr[i]);
-                    yield return d;
-                }
-            }
-        }
-        public IList<dynamic> Fetch(string sql, params object[] args) { return Query(sql, args).ToList(); }
-        public object Scalar(string sql, params object[] args) { return CreateCommand(sql, args).ExecuteScalar(); }
-        public int Execute(params DynamicCommand[] commands) { return this.Execute((IEnumerable<DynamicCommand>)commands); }
-        public int Execute(IEnumerable<DynamicCommand> commands) {
-            using (var tx = Connection.BeginTransaction()) {
-                var result = commands.Select(cmd => CreateCommand(cmd.Sql, cmd.Args, tx)).Aggregate(0, (a, cmd) => a + cmd.ExecuteNonQuery());
-                tx.Commit();
-                return result;
-            }
-        }
-        public void Dispose() { if(_connection.IsValueCreated) Connection.Dispose(); }
-    }
     /// <summary> A class that wraps your database in Dynamic Funtime </summary>
-    public class DynamicDatabase : IDynamicDatabase {
+    public class DynamicDatabase {
         readonly DbProviderFactory _factory;
         readonly string _connectionString;
         public DynamicDatabase(string connectionStringName= "") {
@@ -138,22 +77,61 @@ namespace Massive {
             _factory = DbProviderFactories.GetFactory(_providerName);
             _connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
         }
-        public IEnumerable<dynamic> Query(string sql, params object[] args) { 
-            using(var conn = OpenConnection()) { foreach (var item in conn.Query(sql, args)) yield return item; }
+        private DbCommand CreateDbCommand(DynamicCommand command, DbTransaction tx = null, DbConnection connection = null) {
+            var result = _factory.CreateCommand();
+            result.Connection = connection;
+            result.CommandText = command.Sql;
+            result.Transaction = tx;
+            result.AddParams(command.Args);
+            return result;
         }
-        public IList<dynamic> Fetch(string sql, params object[] args) { return Do(conn => conn.Fetch(sql, args)); }
-        public object Scalar(string sql, params object[] args) { return Do(conn => conn.Scalar(sql, args)); }
-        public int Execute(params DynamicCommand[] commands) { return Execute((IEnumerable<DynamicCommand>)commands); }
-        public int Execute(IEnumerable<DynamicCommand> commands) { return Do(conn => conn.Execute(commands)); }
+        /// <summary> Enumerates the reader yielding the result - thanks to Jeroen Haegebaert </summary>
+        public IEnumerable<dynamic> Query(string sql, params object[] args) { return Query(new DynamicCommand { Sql = sql, Args = args, }); }
+        /// <summary> Enumerates the reader yielding the result - thanks to Jeroen Haegebaert </summary>
+        public IEnumerable<dynamic> Query(DynamicCommand command)
+        {
+            using(var conn = OpenConnection())
+            using (var rdr = CreateDbCommand(command, connection: conn).ExecuteReader(CommandBehavior.CloseConnection)) {
+                while (rdr.Read()) {
+                    var d = (IDictionary<string, object>)new ExpandoObject();
+                    for (var i = 0; i < rdr.FieldCount; i++) d.Add(rdr.GetName(i), rdr[i]);
+                    yield return d;
+                }
+            }
+        }
+        /// <summary>  Runs a query against the database. </summary>
+        public IList<dynamic> Fetch(string sql, params object[] args) { return Fetch(new DynamicCommand{Sql = sql, Args = args,}).ToList(); }
+        /// <summary>  Runs a query against the database. </summary>
+        public IList<dynamic> Fetch(DynamicCommand command) { return Query(command).ToList(); }
+        /// <summary> Returns a single result </summary>
+        public object Scalar(string sql, params object[] args) { return Scalar(new DynamicCommand{Sql = sql, Args = args,}); }
+        /// <summary> Returns a single result </summary>
+        public object Scalar(DynamicCommand command) {
+            using(var conn = OpenConnection()) return CreateDbCommand(command, connection: conn).ExecuteScalar();
+        }
+        /// <summary> Executes a series of DBCommands in a transaction </summary>
+        public int Execute(params DynamicCommand[] commands) { return this.Execute((IEnumerable<DynamicCommand>)commands); }
+        /// <summary> Executes a series of DBCommands in a transaction </summary>
+        public int Execute(IEnumerable<DynamicCommand> commands) {
+            using(var connection = OpenConnection())
+            using (var tx = connection.BeginTransaction()) {
+                var result = commands.Select(cmd => CreateDbCommand(cmd, tx, connection)).Aggregate(0, (a, cmd) => a + cmd.ExecuteNonQuery());
+                tx.Commit();
+                return result;
+            }
+        }
         /// <summary> Gets a table in the database. </summary>
         public DynamicModel GetTable(string tableName, string primaryKeyField = "") { return new DynamicModel(this, tableName, primaryKeyField); }
         /// <summary> Returns a dynamic database scoped to a single connection. </summary>
-        public IDynamicDatabase OpenConnection() { return new DynamicConnection(_connectionString, _factory); }
-        public void Dispose() {}
-        private T Do<T>(Func<IDynamicDatabase, T> work) { using (var conn = OpenConnection()) { return work(conn); } }
+        public DbConnection OpenConnection() {
+            var conn = _factory.CreateConnection();
+            conn.ConnectionString = _connectionString;
+            conn.Open();
+            return conn;
+        }
     }
     /// <summary> A class that wraps your database table in Dynamic Funtime </summary>
-    public class DynamicModel : IDynamicDatabase {
+    public class DynamicModel {
         private readonly DynamicDatabase database;
         public DynamicModel(string connectionStringName = "", string tableName = "", string primaryKeyField = "") 
             : this(new DynamicDatabase(connectionStringName), tableName, primaryKeyField) { }
@@ -162,12 +140,16 @@ namespace Massive {
             TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
         }
+        /// <summary> Enumerates the reader yielding the result - thanks to Jeroen Haegebaert </summary>
         public IEnumerable<dynamic> Query(string sql, params object[] args) { return database.Query(sql, args); }
+        /// <summary>  Runs a query against the database. </summary>
         public IList<dynamic> Fetch(string sql, params object[] args) { return database.Fetch(sql, args); }
+        /// <summary> Returns a single result </summary>
         public object Scalar(string sql, params object[] args) { return database.Scalar(sql, args); }
+        /// <summary> Executes a series of DBCommands in a transaction </summary>
         public int Execute(params DynamicCommand[] commands) { return database.Execute(commands); }
+        /// <summary> Executes a series of DBCommands in a transaction </summary>
         public int Execute(IEnumerable<DynamicCommand> commands) { return database.Execute(commands); }
-        public void Dispose() { database.Dispose(); }
         /// <summary>
         /// Builds a set of Insert and Update commands based on the passed-on objects.
         /// These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
@@ -216,7 +198,7 @@ namespace Massive {
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
         /// </summary>
         public DynamicCommand CreateInsertCommand(object o, object whitelist = null) {
-            const string stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2})";
+            const string stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2}); SELECT @@IDENTITY AS NewID";
             var items = FilterItems(o, whitelist).ToList();
             if (items.Any()) {
                 var keys = string.Join(",", items.Select(item => item.Key).ToArray());
@@ -267,12 +249,7 @@ namespace Massive {
         /// Adds a record to the database. You can pass in an Anonymous object, an ExpandoObject,
         /// A regular old POCO, or a NameValueColletion from a Request.Form or Request.QueryString
         /// </summary>
-        public object Insert(object o, object whitelist = null) {
-            using (var conn = database.OpenConnection()) {
-                conn.Execute(CreateInsertCommand(o, whitelist));
-                return conn.Scalar("SELECT @@IDENTITY as newID");
-            }
-        }
+        public object Insert(object o, object whitelist = null) { return database.Scalar(CreateInsertCommand(o, whitelist)); }
         /// <summary>
         /// Updates a record in the database. You can pass in an Anonymous object, an ExpandoObject,
         /// A regular old POCO, or a NameValueCollection from a Request.Form or Request.QueryString
@@ -299,11 +276,9 @@ namespace Massive {
             var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {1}) AS Row, {0} FROM {2}) AS Paged ", string.Join(",", GetColumns(columns)), orderBy, TableName);
             var pageStart = (currentPage -1) * pageSize;
             sql+= string.Format(" WHERE Row >={0} AND Row <={1}",pageStart, (pageStart + pageSize));
-            var pagedWhere = "";
-            if (!string.IsNullOrEmpty(where)&& where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase)) {
-                    pagedWhere = Regex.Replace(where, "where ", "and ", RegexOptions.IgnoreCase);
+            if (!string.IsNullOrEmpty(where) && where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase)) {
+                    sql += Regex.Replace(where, "where ", "and ", RegexOptions.IgnoreCase);
             }
-            sql += pagedWhere;
             countSQL += where;
             var totalRecords = (int)database.Scalar(countSQL, args);
             return new {
