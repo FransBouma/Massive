@@ -52,7 +52,7 @@ namespace Massive {
             return result;
         }
         /// <summary> Turns the object into a Dictionary </summary>
-        public static IDictionary<string, object> ToDictionary(this object thingy) { return (IDictionary<string, object>)thingy.ToExpando(); }
+        public static IDictionary<string, object> ToDictionary(this object thingy) { return (thingy as IDictionary<string, object>) ?? thingy.ToExpando(); }
     }
     /// <summary> A class that represents a sql command. </summary>
     public class DynamicCommand {
@@ -97,8 +97,7 @@ namespace Massive {
         /// <summary> Enumerates the reader yielding the result - thanks to Jeroen Haegebaert </summary>
         public IEnumerable<dynamic> Query(string sql, params object[] args) { return Query(new DynamicCommand { Sql = sql, Args = args, }); }
         /// <summary> Enumerates the reader yielding the result - thanks to Jeroen Haegebaert </summary>
-        public IEnumerable<dynamic> Query(DynamicCommand command)
-        {
+        public IEnumerable<dynamic> Query(DynamicCommand command) {
             using(var conn = OpenConnection())
             using (var rdr = CreateDbCommand(command, connection: conn).ExecuteReader(CommandBehavior.CloseConnection)) {
                 while (rdr.Read()) {
@@ -203,8 +202,8 @@ namespace Massive {
             const string stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2}); SELECT @@IDENTITY AS NewID";
             var items = FilterItems(o, whitelist).ToList();
             if (items.Any()) {
-                var keys = string.Join(",", items.Select(item => item.Key).ToArray());
-                var vals = string.Join(",", items.Select((_, i) => "@" + i.ToString()).ToArray());
+                var keys = string.Join(",", items.Select(item => item.Key));
+                var vals = string.Join(",", items.Select((_, i) => "@" + i.ToString()));
                 return new DynamicCommand { Sql = string.Format(stub, TableName, keys, vals), Args = items.Select(item => item.Value), };
             }
             throw new InvalidOperationException("Can't parse this object to the database - there are no properties set");
@@ -216,7 +215,7 @@ namespace Massive {
             const string stub = "UPDATE {0} SET {1} WHERE {2} = @{3}";
             var items = FilterItems(o, whitelist).Where(item => !item.Key.Equals(PrimaryKeyField, StringComparison.CurrentCultureIgnoreCase) && item.Value != null).ToList();
             if (items.Any()) {
-                var keys = string.Join(",", items.Select((item, i) => string.Format("{0} = @{1} \r\n", item.Key, i)).ToArray());
+                var keys = string.Join(",", items.Select((item, i) => string.Format("{0} = @{1} \r\n", item.Key, i)));
                 return new DynamicCommand {
                     Sql = string.Format(stub, TableName, keys, PrimaryKeyField, items.Count),
                     Args = items.Select(item => item.Value).Concat(new[] { key }),
@@ -237,15 +236,26 @@ namespace Massive {
                    (columns is Type)   ? ((Type)columns).GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.Instance).Select(prop => prop.Name)
                                        : (columns as IEnumerable<string>) ?? columns.ToDictionary().Select(kvp => kvp.Key);
         }
+        private DynamicCommand BuildCommand(string sql, object key = null, object where = null, params object[] args) {
+            var command = new DynamicCommand { Sql = sql };
+            if (key != null) where = new Dictionary<string, object> {{PrimaryKeyField, key}};
+            if(where == null) return command;
+            var whereString = where as string;
+            if (whereString != null) {
+                var whereRegex = new Regex(@"^where ", RegexOptions.IgnoreCase);
+                var keyword = whereRegex.IsMatch(sql.Trim()) ? " AND " : " WHERE ";
+                command.Sql +=  keyword + whereString.Replace(whereString.Trim(), String.Empty);
+                command.Args = (command.Args ?? Enumerable.Empty<object>()).Concat(args);
+            } else {
+                var dict = where.ToDictionary();
+                command.Sql += " WHERE " + String.Join(" AND ", dict.Select((kvp, i) => String.Format("{0} = @{1}", kvp.Key, i)));
+                command.Args = dict.Select(kvp => kvp.Value).ToArray();
+            }
+            return command;
+        }
         /// <summary> Removes one or more records from the DB according to the passed-in WHERE </summary>
-        public DynamicCommand CreateDeleteCommand(string where = "", object key = null, params object[] args) {
-            var sql = string.Format("DELETE FROM {0} ", TableName);
-            if (key != null) {
-                sql += string.Format("WHERE {0}=@0", PrimaryKeyField);
-            } else if (!string.IsNullOrEmpty(where)) {
-                sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
-            } 
-            return new DynamicCommand{ Sql = sql, Args = key == null ? null : new []{key} };
+        public DynamicCommand CreateDeleteCommand(object key = null, object where = null, params object[] args) {
+            return BuildCommand(string.Format("DELETE FROM {0}", TableName), key, where, args);
         }
         /// <summary>
         /// Adds a record to the database. You can pass in an Anonymous object, an ExpandoObject,
@@ -258,37 +268,33 @@ namespace Massive {
         /// </summary>
         public int Update(object o, object key, object whitelist = null) { return Database.Execute(CreateUpdateCommand(o, key, whitelist)); }
         /// <summary> Removes one or more records from the DB according to the passed-in WHERE </summary>
-        public int Delete(object key = null, string where = "", params object[] args) { return Database.Execute(CreateDeleteCommand(where, key, args)); }
+        public int Delete(object key = null, object where = null, params object[] args) { return Database.Execute(CreateDeleteCommand(key, where, args)); }
         /// <summary>
-        /// Returns all records complying with the passed-in WHERE clause and arguments, 
-        /// ordered as specified, limited (TOP) by limit.
+        /// Returns all records complying with the passed-in WHERE clause and arguments,  ordered as specified, limited (TOP) by limit.
         /// </summary>
-        public IEnumerable<dynamic> All(string where = "", string orderBy = "", int limit = 0, object columns = null, params object[] args) {
-            var sql = limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1} " : "SELECT {0} FROM {1} ";
-            if (!string.IsNullOrEmpty(where))
-                sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
+        public IEnumerable<dynamic> All(object where = null, string orderBy = "", int limit = 0, object columns = null, params object[] args) {
+            var sql = String.Format(limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1}" : "SELECT {0} FROM {1}", String.Join(",", GetColumns(columns)), TableName);
+            var command = BuildCommand(sql, where: where, args: args);
             if (!String.IsNullOrEmpty(orderBy))
-                sql += orderBy.Trim().StartsWith("order by", StringComparison.CurrentCultureIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
-            return Database.Query(string.Format(sql, string.Join(",", GetColumns(columns)), TableName), args);
+                command.Sql += orderBy.Trim().StartsWith("order by", StringComparison.CurrentCultureIgnoreCase) ? " " + orderBy : " ORDER BY " + orderBy;
+            return Database.Query(command);
         }
         /// <summary> Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords. </summary>
-        public DynamicPagedResult Paged(string where = "", string orderBy = "", object columns = null, int pageSize = 20, int currentPage =1, params object[] args) {
-            var countSQL = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
+        public DynamicPagedResult Paged(object where = null, string orderBy = "", object columns = null, int pageSize = 20, int currentPage =1, params object[] args) {
+            var countSql = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
             if (String.IsNullOrEmpty(orderBy)) orderBy = PrimaryKeyField;
-            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {1}) AS Row, {0} FROM {2}) AS Paged ", string.Join(",", GetColumns(columns)), orderBy, TableName);
+            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {1}) AS Row, {0} FROM {2}) AS Paged", string.Join(",", GetColumns(columns)), orderBy, TableName);
             var pageStart = (currentPage -1) * pageSize;
             sql+= string.Format(" WHERE Row >={0} AND Row <={1}",pageStart, (pageStart + pageSize));
-            if (!string.IsNullOrEmpty(where) && where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase)) {
-                    sql += Regex.Replace(where, "where ", "and ", RegexOptions.IgnoreCase);
-            }
-            countSQL += where;
-            var totalRecords = (int)Database.Scalar(countSQL, args);
-            return new DynamicPagedResult(totalRecords, (totalRecords + (pageSize - 1)) / pageSize, Database.Query(sql, args));
+            var queryCommand = BuildCommand(sql, where: where, args: args);
+            var whereCommand = BuildCommand(countSql, where: where, args: args);
+            var totalRecords = (int)Database.Scalar(whereCommand);
+            return new DynamicPagedResult(totalRecords, (totalRecords + (pageSize - 1)) / pageSize, Database.Query(queryCommand));
         }
         /// <summary> Returns a single row from the database </summary>
-        public dynamic Single(object key, object columns = null) {
-            var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", string.Join(",", GetColumns(columns)), TableName, PrimaryKeyField);
-            return Database.Fetch(sql, key).FirstOrDefault();
+        public dynamic Single(object key = null, object where = null, object columns = null) {
+            var sql = string.Format("SELECT {0} FROM {1}", string.Join(",", GetColumns(columns)), TableName);
+            return Database.Fetch(BuildCommand(sql, key, where)).FirstOrDefault();
         }
     }
 }
