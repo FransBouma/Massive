@@ -51,34 +51,35 @@ namespace Massive {
         public static IDictionary<string, object> ToDictionary(this object thingy) { return (thingy as IDictionary<string, object>) ?? thingy.ToExpando(); }
     }
     /// <summary> A class that wraps your database in Dynamic Funtime </summary>
-    public class DynamicDatabase {
+    public class DynamicModel {
         readonly DbProviderFactory _factory;
         readonly string _connectionString;
-        public DynamicDatabase(string connectionStringName= "") {
-            if (connectionStringName == "")
-                connectionStringName = ConfigurationManager.ConnectionStrings[0].Name;
+        public DynamicModel(string connectionStringName = "", string tableName = "", string primaryKeyField = "") {
             var _providerName = "System.Data.SqlClient";
             if (ConfigurationManager.ConnectionStrings[connectionStringName] != null) {
                 if (!string.IsNullOrEmpty(ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName))
                     _providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
-            } else {
-                throw new InvalidOperationException("Can't find a connection string with the name '" + connectionStringName + "'");
-            }
+            } else throw new InvalidOperationException("Can't find a connection string with the name '" + connectionStringName + "'");
             _factory = DbProviderFactories.GetFactory(_providerName);
             _connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
+            TableName = tableName == "" ? this.GetType().Name : tableName;
+            PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
         }
-        public DbCommand CreateCommand(string sql , DbTransaction tx = null, DbConnection connection = null, object[] args = null) {
+        /// <summary> Gets or sets the primary key for this model. </summary>
+        public string PrimaryKeyField { get; set; }
+        /// <summary> Gets or sets the table name for this model. </summary>
+        public string TableName { get; set; }
+        /// <summary> Creates a DBCommand that you can use for loving your database. </summary>
+        public DbCommand CreateCommand(string sql, DbConnection connection = null, object[] args = null) {
             var result = _factory.CreateCommand();
             result.CommandText = sql;
             result.AddParams(args);
             result.Connection = connection;
-            result.Transaction = tx;
             return result;
         }
         /// <summary> Enumerates the reader yielding the result - thanks to Jeroen Haegebaert </summary>
         public IEnumerable<dynamic> Query(string sql, params object[] args) { return Query(CreateCommand(sql, args: args)); }
-        /// <summary> Enumerates the reader yielding the result - thanks to Jeroen Haegebaert </summary>
-        public IEnumerable<dynamic> Query(DbCommand command) {
+        private IEnumerable<dynamic> Query(DbCommand command) {
             using(var conn = OpenConnection()) {
                 command.Connection = conn;
                 using (var rdr = command.ExecuteReader(CommandBehavior.CloseConnection)) {
@@ -91,26 +92,21 @@ namespace Massive {
             }
         }
         /// <summary>  Runs a query against the database. </summary>
-        public IList<dynamic> Fetch(DbCommand command) { return Query(command).ToList(); }
-        /// <summary>  Runs a query against the database. </summary>
         public IList<dynamic> Fetch(string sql, params object[] args) { return Query(sql, args).ToList(); }
         /// <summary> Returns a single result </summary>
-        public object Scalar(DbCommand command) {
+        public object Scalar(string sql, params object[] args) { return Scalar(CreateCommand(sql, args: args)); }
+        private object Scalar(DbCommand command) {
             using (var conn = OpenConnection()) {
                 command.Connection = conn;
                 return command.ExecuteScalar();
             }
         }
-        /// <summary> Returns a single result </summary>
-        public object Scalar(string sql, params object[] args) { return Scalar(CreateCommand(sql, args: args)); }
-        /// <summary> Executes a series of DBCommands in a transaction </summary>
-        public int ExecuteTransaction(params DbCommand[] commands) { return this.Execute(commands, transaction: true); }
         /// <summary> Executes a single DBCommand </summary>
-        public int Execute(string sql, params object[] args) { return this.Execute(CreateCommand(sql, args: args)); }
-        /// <summary> Executes a series of DBCommands </summary>
-        public int Execute(params DbCommand[] commands) { return this.Execute(commands, transaction: false); }
+        public int Execute(string sql, params object[] args) { return this.Execute(new [] {CreateCommand(sql, args: args)}, transaction: false); }
+        /// <summary> Executes a series of DBCommands in a transaction </summary>
+        public int Execute(params DbCommand[] commands) { return this.Execute(commands, transaction: true); }
         /// <summary> Executes a series of DBCommands optionally in a transaction </summary>
-        public int Execute(IEnumerable<DbCommand> commands, bool transaction = false) {
+        public int Execute(IEnumerable<DbCommand> commands, bool transaction = true) {
             using(var connection = OpenConnection())
             using(var tx = (transaction) ? connection.BeginTransaction() : null) {
                 var result = commands.Aggregate(0, (a, cmd) => {
@@ -122,8 +118,6 @@ namespace Massive {
                 return result;
             }
         }
-        /// <summary> Gets a table in the database. </summary>
-        public DynamicModel GetTable(string tableName, string primaryKeyField = "") { return new DynamicModel(this, tableName, primaryKeyField); }
         /// <summary> Returns a dynamic database scoped to a single connection. </summary>
         public DbConnection OpenConnection() {
             var conn = _factory.CreateConnection();
@@ -131,22 +125,6 @@ namespace Massive {
             conn.Open();
             return conn;
         }
-    }
-    /// <summary> A class that wraps your database table in Dynamic Funtime </summary>
-    public class DynamicModel {
-        public DynamicModel(string connectionStringName = "", string tableName = "", string primaryKeyField = "") 
-            : this(new DynamicDatabase(connectionStringName), tableName, primaryKeyField) { }
-        public DynamicModel(DynamicDatabase database, string tableName = "", string primaryKeyField ="") {
-            this.Database = database ?? new DynamicDatabase();
-            TableName = tableName == "" ? this.GetType().Name : tableName;
-            PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
-        }
-        /// <summary> Gets the database for this model. </summary>
-        public DynamicDatabase Database { get; private set; }
-        /// <summary> Gets or sets the primary key for this model. </summary>
-        public string PrimaryKeyField { get; set; }
-        /// <summary> Gets or sets the table name for this model. </summary>
-        public string TableName { get; set; }
         /// <summary>
         /// Builds a set of Insert and Update commands based on the passed-on objects.
         /// These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
@@ -173,7 +151,7 @@ namespace Massive {
         /// With a PK property (whatever PrimaryKeyField is set to) will be created at UPDATEs
         /// </summary>
         public int SaveWithWhitelist(object whitelist, params object[] things) {
-            return Database.Execute(BuildCommandsWithWhitelist(whitelist, things), transaction: true);
+            return Execute(BuildCommandsWithWhitelist(whitelist, things));
         }
         /// <summary>
         /// Conventionally introspects the object passed in for a field that 
@@ -196,19 +174,17 @@ namespace Massive {
             if (items.Any()) {
                 var keys = string.Join(",", items.Select(item => item.Key));
                 var vals = string.Join(",", items.Select((_, i) => "@" + i.ToString()));
-                return Database.CreateCommand(string.Format(stub, TableName, keys, vals), args: items.Select(item => item.Value).ToArray());
+                return CreateCommand(string.Format(stub, TableName, keys, vals), args: items.Select(item => item.Value).ToArray());
             }
             throw new InvalidOperationException("Can't parse this object to the database - there are no properties set");
         }
-        /// <summary>
-        /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
-        /// </summary>
+        /// <summary> Creates a command for use with transactions - internal stuff mostly, but here for you to play with </summary>
         public DbCommand CreateUpdateCommand(object o, object key, object whitelist = null) {
             const string stub = "UPDATE {0} SET {1} WHERE {2} = @{3}";
             var items = FilterItems(o, whitelist).Where(item => !item.Key.Equals(PrimaryKeyField, StringComparison.CurrentCultureIgnoreCase) && item.Value != null).ToList();
             if (items.Any()) {
                 var keys = string.Join(",", items.Select((item, i) => string.Format("{0} = @{1} \r\n", item.Key, i)));
-                return Database.CreateCommand(string.Format(stub, TableName, keys, PrimaryKeyField, items.Count),
+                return CreateCommand(string.Format(stub, TableName, keys, PrimaryKeyField, items.Count),
                                                 args: items.Select(item => item.Value).Concat(new[] {key}).ToArray());
             }
             throw new InvalidOperationException("No parsable object was sent in - could not divine any name/value pairs");
@@ -227,7 +203,7 @@ namespace Massive {
                                        : (columns as IEnumerable<string>) ?? columns.ToDictionary().Select(kvp => kvp.Key);
         }
         private DbCommand BuildCommand(string sql, object key = null, object where = null, params object[] args) {
-            var command = Database.CreateCommand(sql);
+            var command = CreateCommand(sql);
             if (key != null) where = new Dictionary<string, object> {{PrimaryKeyField, key}};
             if(where == null) return command;
             var whereString = where as string;
@@ -251,14 +227,14 @@ namespace Massive {
         /// Adds a record to the database. You can pass in an Anonymous object, an ExpandoObject,
         /// A regular old POCO, or a NameValueColletion from a Request.Form or Request.QueryString
         /// </summary>
-        public object Insert(object o, object whitelist = null) { return Database.Scalar(CreateInsertCommand(o, whitelist)); }
+        public object Insert(object o, object whitelist = null) { return Scalar(CreateInsertCommand(o, whitelist)); }
         /// <summary>
         /// Updates a record in the database. You can pass in an Anonymous object, an ExpandoObject,
         /// A regular old POCO, or a NameValueCollection from a Request.Form or Request.QueryString
         /// </summary>
-        public int Update(object o, object key, object whitelist = null) { return Database.Execute(CreateUpdateCommand(o, key, whitelist)); }
+        public int Update(object o, object key, object whitelist = null) { return Execute(CreateUpdateCommand(o, key, whitelist)); }
         /// <summary> Removes one or more records from the DB according to the passed-in WHERE </summary>
-        public int Delete(object key = null, object where = null, params object[] args) { return Database.Execute(CreateDeleteCommand(key, where, args)); }
+        public int Delete(object key = null, object where = null, params object[] args) { return Execute(CreateDeleteCommand(key, where, args)); }
         /// <summary>
         /// Returns all records complying with the passed-in WHERE clause and arguments,  ordered as specified, limited (TOP) by limit.
         /// </summary>
@@ -267,7 +243,7 @@ namespace Massive {
             var command = BuildCommand(sql, where: where, args: args);
             if (!String.IsNullOrEmpty(orderBy))
                 command.CommandText += (orderBy.Trim().StartsWith("order by", StringComparison.CurrentCultureIgnoreCase) ? " " : " ORDER BY ") + orderBy;
-            return Database.Query(command);
+            return Query(command);
         }
         /// <summary> Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords. </summary>
         public dynamic Paged(object where = null, string orderBy = "", object columns = null, int pageSize = 20, int currentPage =1, params object[] args) {
@@ -278,13 +254,13 @@ namespace Massive {
             sql+= string.Format(" WHERE Row >={0} AND Row <={1}",pageStart, (pageStart + pageSize));
             var queryCommand = BuildCommand(sql, where: where, args: args);
             var whereCommand = BuildCommand(countSql, where: where, args: args);
-            var totalRecords = (int)Database.Scalar(whereCommand);
-            return new { TotalRecords = totalRecords, TotalPages = (totalRecords + (pageSize - 1)) / pageSize, Items = Database.Query(queryCommand) };
+            var totalRecords = (int)Scalar(whereCommand);
+            return new { TotalRecords = totalRecords, TotalPages = (totalRecords + (pageSize - 1)) / pageSize, Items = Query(queryCommand) };
         }
         /// <summary> Returns a single row from the database </summary>
         public dynamic Single(object key = null, object where = null, object columns = null) {
             var sql = string.Format("SELECT {0} FROM {1}", string.Join(",", GetColumns(columns)), TableName);
-            return Database.Fetch(BuildCommand(sql, key, where)).FirstOrDefault();
+            return Query(BuildCommand(sql, key, where)).FirstOrDefault();
         }
     }
 }

@@ -3,7 +3,7 @@ Massive is a Single File Database Lover. Move over Bacon - Taste is got a new fr
 
 
 I'm sharing this with the world because we need another way to access data - don't you think? Truthfully - I wanted to see if I could flex the C# 4 stuff and
-run up data access with a single file. This is ready to roll and weighs in at a lovely 290 lines of code. Some of which is comments.
+run up data access with a single file. This is ready to roll and weighs in at a lovely 266 lines of code. Some of which is comments.
 
 How To Install It?
 ------------------
@@ -41,10 +41,10 @@ Now you can query thus:
 	var productsFour = table.All(columns: "ProductName as Name", where: "WHERE categoryID=@0",args: 4);
 
 You can also run ad-hoc queries as needed:
-	var result = tbl.Database.Query("SELECT * FROM Categories");
+	var result = tbl.Query("SELECT * FROM Categories");
 
 This will pull categories and enumerate the results - streaming them as opposed to bulk-fetching them (thanks to Jeroen Haegebaert for the code). If you need to run a Fetch - you can:
-	var result = tbl.Database.Fetch("SELECT * FROM Categories");
+	var result = tbl.Fetch("SELECT * FROM Categories");
 
 If you want to have a Paged result set - you can:
 	var result = tbl.Paged(where: "UnitPrice > 20", currentPage:2, pageSize: 20);
@@ -54,7 +54,7 @@ What you get back is IEnumerable < ExpandoObject > - meaning that it's malleable
 
 That's pretty much it. One thing I really like is the groovy DSL that Massive uses - it looks just like SQL. If you want, you can use this DSL to query the database:
 	var table = new Products();
-	var productsThatILike = table.Database.Query("SELECT ProductName, CategoryName FROM Products INNER JOIN Categories ON Categories.CategoryID = Products.CategoryID WHERE CategoryID = @0",5);
+	var productsThatILike = table.Query("SELECT ProductName, CategoryName FROM Products INNER JOIN Categories ON Categories.CategoryID = Products.CategoryID WHERE CategoryID = @0",5);
 	//get down!
 
 Some of you might look at that and think it looks suspiciously like inline SQL. It *does* look sort of like it doesn't it! But I think it reads a bit better than Linq to SQL - it's a bit closer to the mark if you will. 
