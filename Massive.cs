@@ -50,21 +50,6 @@ namespace Massive {
         /// <summary> Turns the object into a Dictionary </summary>
         public static IDictionary<string, object> ToDictionary(this object thingy) { return (thingy as IDictionary<string, object>) ?? thingy.ToExpando(); }
     }
-    /// <summary> A class that represents a sql command. </summary>
-    public class DynamicCommand {
-        public string Sql { get; set; }
-        public IEnumerable<object> Args { get; set; }
-    }
-    public class DynamicPagedResult {
-        public DynamicPagedResult(int totalRecords, int totalPages, dynamic items) {
-            TotalRecords = totalRecords;
-            TotalPages = totalPages;
-            Items = items;
-        }
-        public int TotalRecords { get; private set; }
-        public int TotalPages { get; private set; }
-        public IEnumerable<dynamic> Items { get; private set; }
-    }
     /// <summary> A class that wraps your database in Dynamic Funtime </summary>
     public class DynamicDatabase {
         readonly DbProviderFactory _factory;
@@ -82,48 +67,57 @@ namespace Massive {
             _factory = DbProviderFactories.GetFactory(_providerName);
             _connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
         }
-        private DbCommand CreateDbCommand(DynamicCommand command, DbTransaction tx = null, DbConnection connection = null) {
+        public DbCommand CreateCommand(string sql , DbTransaction tx = null, DbConnection connection = null, object[] args = null) {
             var result = _factory.CreateCommand();
+            result.CommandText = sql;
+            result.AddParams(args);
             result.Connection = connection;
-            result.CommandText = command.Sql;
             result.Transaction = tx;
-            result.AddParams(command.Args);
             return result;
         }
         /// <summary> Enumerates the reader yielding the result - thanks to Jeroen Haegebaert </summary>
-        public IEnumerable<dynamic> Query(string sql, params object[] args) { return Query(new DynamicCommand { Sql = sql, Args = args, }); }
+        public IEnumerable<dynamic> Query(string sql, params object[] args) { return Query(CreateCommand(sql, args: args)); }
         /// <summary> Enumerates the reader yielding the result - thanks to Jeroen Haegebaert </summary>
-        public IEnumerable<dynamic> Query(DynamicCommand command) {
-            using(var conn = OpenConnection())
-            using (var rdr = CreateDbCommand(command, connection: conn).ExecuteReader(CommandBehavior.CloseConnection)) {
-                while (rdr.Read()) {
-                    var d = (IDictionary<string, object>)new ExpandoObject();
-                    for (var i = 0; i < rdr.FieldCount; i++) d.Add(rdr.GetName(i), rdr[i]);
-                    yield return d;
+        public IEnumerable<dynamic> Query(DbCommand command) {
+            using(var conn = OpenConnection()) {
+                command.Connection = conn;
+                using (var rdr = command.ExecuteReader(CommandBehavior.CloseConnection)) {
+                    while (rdr.Read()) {
+                        var d = (IDictionary<string, object>)new ExpandoObject();
+                        for (var i = 0; i < rdr.FieldCount; i++) d.Add(rdr.GetName(i), rdr[i]);
+                        yield return d;
+                    }
                 }
             }
         }
         /// <summary>  Runs a query against the database. </summary>
-        public IList<dynamic> Fetch(string sql, params object[] args) { return Fetch(new DynamicCommand{Sql = sql, Args = args,}).ToList(); }
+        public IList<dynamic> Fetch(DbCommand command) { return Query(command).ToList(); }
         /// <summary>  Runs a query against the database. </summary>
-        public IList<dynamic> Fetch(DynamicCommand command) { return Query(command).ToList(); }
+        public IList<dynamic> Fetch(string sql, params object[] args) { return Query(sql, args).ToList(); }
         /// <summary> Returns a single result </summary>
-        public object Scalar(string sql, params object[] args) { return Scalar(new DynamicCommand{Sql = sql, Args = args,}); }
-        /// <summary> Returns a single result </summary>
-        public object Scalar(DynamicCommand command) {
-            using(var conn = OpenConnection()) return CreateDbCommand(command, connection: conn).ExecuteScalar();
+        public object Scalar(DbCommand command) {
+            using (var conn = OpenConnection()) {
+                command.Connection = conn;
+                return command.ExecuteScalar();
+            }
         }
+        /// <summary> Returns a single result </summary>
+        public object Scalar(string sql, params object[] args) { return Scalar(CreateCommand(sql, args: args)); }
         /// <summary> Executes a series of DBCommands in a transaction </summary>
-        public int ExecuteTransaction(params DynamicCommand[] commands) { return this.Execute(commands, transaction: true); }
+        public int ExecuteTransaction(params DbCommand[] commands) { return this.Execute(commands, transaction: true); }
         /// <summary> Executes a single DBCommand </summary>
-        public int Execute(string sql, params object[] args) { return this.Execute(new DynamicCommand { Sql = sql, Args = args, }); }
+        public int Execute(string sql, params object[] args) { return this.Execute(CreateCommand(sql, args: args)); }
         /// <summary> Executes a series of DBCommands </summary>
-        public int Execute(params DynamicCommand[] commands) { return this.Execute(commands, transaction: false); }
+        public int Execute(params DbCommand[] commands) { return this.Execute(commands, transaction: false); }
         /// <summary> Executes a series of DBCommands optionally in a transaction </summary>
-        public int Execute(IEnumerable<DynamicCommand> commands, bool transaction = false) {
+        public int Execute(IEnumerable<DbCommand> commands, bool transaction = false) {
             using(var connection = OpenConnection())
             using(var tx = (transaction) ? connection.BeginTransaction() : null) {
-                var result = commands.Select(cmd => CreateDbCommand(cmd, tx, connection)).Aggregate(0, (a, cmd) => a + cmd.ExecuteNonQuery());
+                var result = commands.Aggregate(0, (a, cmd) => {
+                                                           cmd.Connection = connection;
+                                                           cmd.Transaction = tx;
+                                                           return a + cmd.ExecuteNonQuery();
+                                                       });
                 if(tx != null) tx.Commit();
                 return result;
             }
@@ -158,13 +152,13 @@ namespace Massive {
         /// These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
         /// With a PK property (whatever PrimaryKeyField is set to) will be created at UPDATEs
         /// </summary>
-        public List<DynamicCommand> BuildCommands(params object[] things) { return BuildCommandsWithWhitelist(null, things); }
+        public List<DbCommand> BuildCommands(params object[] things) { return BuildCommandsWithWhitelist(null, things); }
         /// <summary>
         /// Builds a set of Insert and Update commands based on the passed-on objects.
         /// These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
         /// With a PK property (whatever PrimaryKeyField is set to) will be created at UPDATEs
         /// </summary>
-        public List<DynamicCommand> BuildCommandsWithWhitelist(object whitelist, params object[] things) {
+        public List<DbCommand> BuildCommandsWithWhitelist(object whitelist, params object[] things) {
             return things.Select(item => HasPrimaryKey(item) ? CreateUpdateCommand(item,GetPrimaryKey(item),whitelist) : CreateInsertCommand(item,whitelist)).ToList();
         }
         /// <summary>
@@ -195,31 +189,27 @@ namespace Massive {
             o.ToDictionary().TryGetValue(PrimaryKeyField, out result);
             return result;
         }
-        /// <summary>
-        /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
-        /// </summary>
-        public DynamicCommand CreateInsertCommand(object o, object whitelist = null) {
+        /// <summary> Creates a command for use with transactions - internal stuff mostly, but here for you to play with </summary>
+        public DbCommand CreateInsertCommand(object o, object whitelist = null) {
             const string stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2}); SELECT @@IDENTITY AS NewID";
             var items = FilterItems(o, whitelist).ToList();
             if (items.Any()) {
                 var keys = string.Join(",", items.Select(item => item.Key));
                 var vals = string.Join(",", items.Select((_, i) => "@" + i.ToString()));
-                return new DynamicCommand { Sql = string.Format(stub, TableName, keys, vals), Args = items.Select(item => item.Value), };
+                return Database.CreateCommand(string.Format(stub, TableName, keys, vals), args: items.Select(item => item.Value).ToArray());
             }
             throw new InvalidOperationException("Can't parse this object to the database - there are no properties set");
         }
         /// <summary>
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
         /// </summary>
-        public DynamicCommand CreateUpdateCommand(object o, object key, object whitelist = null) {
+        public DbCommand CreateUpdateCommand(object o, object key, object whitelist = null) {
             const string stub = "UPDATE {0} SET {1} WHERE {2} = @{3}";
             var items = FilterItems(o, whitelist).Where(item => !item.Key.Equals(PrimaryKeyField, StringComparison.CurrentCultureIgnoreCase) && item.Value != null).ToList();
             if (items.Any()) {
                 var keys = string.Join(",", items.Select((item, i) => string.Format("{0} = @{1} \r\n", item.Key, i)));
-                return new DynamicCommand {
-                    Sql = string.Format(stub, TableName, keys, PrimaryKeyField, items.Count),
-                    Args = items.Select(item => item.Value).Concat(new[] { key }),
-                };
+                return Database.CreateCommand(string.Format(stub, TableName, keys, PrimaryKeyField, items.Count),
+                                                args: items.Select(item => item.Value).Concat(new[] {key}).ToArray());
             }
             throw new InvalidOperationException("No parsable object was sent in - could not divine any name/value pairs");
         }
@@ -236,25 +226,25 @@ namespace Massive {
                    (columns is Type)   ? ((Type)columns).GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.Instance).Select(prop => prop.Name)
                                        : (columns as IEnumerable<string>) ?? columns.ToDictionary().Select(kvp => kvp.Key);
         }
-        private DynamicCommand BuildCommand(string sql, object key = null, object where = null, params object[] args) {
-            var command = new DynamicCommand { Sql = sql };
+        private DbCommand BuildCommand(string sql, object key = null, object where = null, params object[] args) {
+            var command = Database.CreateCommand(sql);
             if (key != null) where = new Dictionary<string, object> {{PrimaryKeyField, key}};
             if(where == null) return command;
             var whereString = where as string;
             if (whereString != null) {
                 var whereRegex = new Regex(@"^where ", RegexOptions.IgnoreCase);
                 var keyword = whereRegex.IsMatch(sql.Trim()) ? " AND " : " WHERE ";
-                command.Sql +=  keyword + whereString.Replace(whereString.Trim(), String.Empty);
-                command.Args = (command.Args ?? Enumerable.Empty<object>()).Concat(args);
+                command.CommandText +=  keyword + whereString.Replace(whereString.Trim(), String.Empty);
+                command.AddParams(args);
             } else {
                 var dict = where.ToDictionary();
-                command.Sql += " WHERE " + String.Join(" AND ", dict.Select((kvp, i) => String.Format("{0} = @{1}", kvp.Key, i)));
-                command.Args = dict.Select(kvp => kvp.Value).ToArray();
+                command.CommandText += " WHERE " + String.Join(" AND ", dict.Select((kvp, i) => String.Format("{0} = @{1}", kvp.Key, i)));
+                command.AddParams(dict.Select(kvp => kvp.Value));
             }
             return command;
         }
         /// <summary> Removes one or more records from the DB according to the passed-in WHERE </summary>
-        public DynamicCommand CreateDeleteCommand(object key = null, object where = null, params object[] args) {
+        public DbCommand CreateDeleteCommand(object key = null, object where = null, params object[] args) {
             return BuildCommand(string.Format("DELETE FROM {0}", TableName), key, where, args);
         }
         /// <summary>
@@ -276,11 +266,11 @@ namespace Massive {
             var sql = String.Format(limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1}" : "SELECT {0} FROM {1}", String.Join(",", GetColumns(columns)), TableName);
             var command = BuildCommand(sql, where: where, args: args);
             if (!String.IsNullOrEmpty(orderBy))
-                command.Sql += (orderBy.Trim().StartsWith("order by", StringComparison.CurrentCultureIgnoreCase) ? " " : " ORDER BY ") + orderBy;
+                command.CommandText += (orderBy.Trim().StartsWith("order by", StringComparison.CurrentCultureIgnoreCase) ? " " : " ORDER BY ") + orderBy;
             return Database.Query(command);
         }
         /// <summary> Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords. </summary>
-        public DynamicPagedResult Paged(object where = null, string orderBy = "", object columns = null, int pageSize = 20, int currentPage =1, params object[] args) {
+        public dynamic Paged(object where = null, string orderBy = "", object columns = null, int pageSize = 20, int currentPage =1, params object[] args) {
             var countSql = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
             if (String.IsNullOrEmpty(orderBy)) orderBy = PrimaryKeyField;
             var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {1}) AS Row, {0} FROM {2}) AS Paged", string.Join(",", GetColumns(columns)), orderBy, TableName);
@@ -289,7 +279,7 @@ namespace Massive {
             var queryCommand = BuildCommand(sql, where: where, args: args);
             var whereCommand = BuildCommand(countSql, where: where, args: args);
             var totalRecords = (int)Database.Scalar(whereCommand);
-            return new DynamicPagedResult(totalRecords, (totalRecords + (pageSize - 1)) / pageSize, Database.Query(queryCommand));
+            return new { TotalRecords = totalRecords, TotalPages = (totalRecords + (pageSize - 1)) / pageSize, Items = Database.Query(queryCommand) };
         }
         /// <summary> Returns a single row from the database </summary>
         public dynamic Single(object key = null, object where = null, object columns = null) {
