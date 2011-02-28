@@ -39,16 +39,12 @@ namespace Massive {
         }
         /// <summary> Turns the object into an ExpandoObject </summary>
         public static dynamic ToExpando(this object o) {
-            if (o.GetType() == typeof(ExpandoObject)) return o; //shouldn't have to... but just in case
+            if (o is ExpandoObject) return o; //shouldn't have to... but just in case
             var result = new ExpandoObject();
             var d = result as IDictionary<string, object>; //work with the Expando as a Dictionary
-            if (o.GetType() == typeof(NameValueCollection)) {
-                var nv = (NameValueCollection)o;
-                nv.Cast<string>().Select(key => new KeyValuePair<string, object>(key, nv[key])).ForEach(d.Add);
-            } else {
-                var props = o.GetType().GetProperties();
-                props.ForEach(item => d.Add(item.Name, item.GetValue(o, null)));
-            }
+            var nv = o as NameValueCollection;
+            if (nv != null) nv.Cast<string>().Select(key => new KeyValuePair<string, object>(key, nv[key])).ForEach(d.Add);
+            else o.GetType().GetProperties().ForEach(item => d.Add(item.Name, item.GetValue(o, null)));
             return result;
         }
         /// <summary> Turns the object into a Dictionary </summary>
@@ -118,13 +114,17 @@ namespace Massive {
             using(var conn = OpenConnection()) return CreateDbCommand(command, connection: conn).ExecuteScalar();
         }
         /// <summary> Executes a series of DBCommands in a transaction </summary>
-        public int Execute(params DynamicCommand[] commands) { return this.Execute((IEnumerable<DynamicCommand>)commands); }
-        /// <summary> Executes a series of DBCommands in a transaction </summary>
-        public int Execute(IEnumerable<DynamicCommand> commands) {
+        public int ExecuteTransaction(params DynamicCommand[] commands) { return this.Execute(commands, transaction: true); }
+        /// <summary> Executes a single DBCommand </summary>
+        public int Execute(string sql, params object[] args) { return this.Execute(new DynamicCommand { Sql = sql, Args = args, }); }
+        /// <summary> Executes a series of DBCommands </summary>
+        public int Execute(params DynamicCommand[] commands) { return this.Execute(commands, transaction: false); }
+        /// <summary> Executes a series of DBCommands optionally in a transaction </summary>
+        public int Execute(IEnumerable<DynamicCommand> commands, bool transaction = false) {
             using(var connection = OpenConnection())
-            using (var tx = connection.BeginTransaction()) {
+            using(var tx = (transaction) ? connection.BeginTransaction() : null) {
                 var result = commands.Select(cmd => CreateDbCommand(cmd, tx, connection)).Aggregate(0, (a, cmd) => a + cmd.ExecuteNonQuery());
-                tx.Commit();
+                if(tx != null) tx.Commit();
                 return result;
             }
         }
@@ -179,7 +179,7 @@ namespace Massive {
         /// With a PK property (whatever PrimaryKeyField is set to) will be created at UPDATEs
         /// </summary>
         public int SaveWithWhitelist(object whitelist, params object[] things) {
-            return Database.Execute(BuildCommandsWithWhitelist(whitelist, things));
+            return Database.Execute(BuildCommandsWithWhitelist(whitelist, things), transaction: true);
         }
         /// <summary>
         /// Conventionally introspects the object passed in for a field that 
@@ -276,7 +276,7 @@ namespace Massive {
             var sql = String.Format(limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1}" : "SELECT {0} FROM {1}", String.Join(",", GetColumns(columns)), TableName);
             var command = BuildCommand(sql, where: where, args: args);
             if (!String.IsNullOrEmpty(orderBy))
-                command.Sql += orderBy.Trim().StartsWith("order by", StringComparison.CurrentCultureIgnoreCase) ? " " + orderBy : " ORDER BY " + orderBy;
+                command.Sql += (orderBy.Trim().StartsWith("order by", StringComparison.CurrentCultureIgnoreCase) ? " " : " ORDER BY ") + orderBy;
             return Database.Query(command);
         }
         /// <summary> Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords. </summary>
