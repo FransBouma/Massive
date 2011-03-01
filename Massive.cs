@@ -255,7 +255,7 @@ namespace Massive {
             var queryCommand = BuildCommand(sql, where: where, args: args);
             var whereCommand = BuildCommand(countSql, where: where, args: args);
             var totalRecords = (int)Scalar(whereCommand);
-            return new { TotalRecords = totalRecords, TotalPages = (totalRecords + (pageSize - 1)) / pageSize, Items = Query(queryCommand) };
+            return new { TotalRecords = totalRecords, TotalPages = (totalRecords + (pageSize - 1)) / pageSize, Items = Query(queryCommand) }.ToExpando();
         }
         /// <summary> Returns a single row from the database </summary>
         public dynamic Single(object key = null, object where = null, object columns = null) {
