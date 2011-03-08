@@ -90,7 +90,7 @@ namespace Massive
         /// <param name="args">The arguments.</param>
         /// <returns>An enumerable interface of dynamic objects.</returns>
         /// <remarks></remarks>
-        public IEnumerable<object> Query(string sql, params object[] args)
+        public IEnumerable<dynamic> Query(string sql, params object[] args)
         {
             using (var conn = this.OpenConnection())
             {
@@ -116,9 +116,9 @@ namespace Massive
         /// <param name="args">The arguments.</param>
         /// <returns>A list interface of dynamic objects.</returns>
         /// <remarks></remarks>
-        public IList<object> Fetch(string sql, params object[] args)
+        public IList<dynamic> Fetch(string sql, params object[] args)
         {
-            return this.Query(sql, args).ToList();
+            return this.Query(sql, args).ToList<dynamic>();
         }
 
         /// <summary>
