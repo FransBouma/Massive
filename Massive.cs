@@ -299,7 +299,7 @@ namespace Massive {
                 var cmd = CreateInsertCommand(o);
                 cmd.Connection = conn;
                 cmd.ExecuteNonQuery();
-                cmd.CommandText = "SELECT @@IDENTITY as newID";
+                cmd.CommandText = "SELECT SCOPE_IDENTITY() as newID";
                 result = cmd.ExecuteScalar();
             }
             return result;
