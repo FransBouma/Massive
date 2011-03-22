@@ -87,7 +87,7 @@ namespace Massive {
     /// <summary>
     /// A class that wraps your database table in Dynamic Funtime
     /// </summary>
-    public  class DynamicModel {
+    public abstract class DynamicModel {
         DbProviderFactory _factory;
         string _connectionString;
 
