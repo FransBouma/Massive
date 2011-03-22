@@ -7,8 +7,6 @@ using System.Data.Common;
 using System.Dynamic;
 using System.Linq;
 using System.Text;
-using System.Collections;
-using System.Text.RegularExpressions;
 
 namespace Massive {
     public static class ObjectExtensions {
@@ -361,6 +359,85 @@ namespace Massive {
         public dynamic Single(object key, string columns = "*") {
             var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", columns,TableName, PrimaryKeyField);
             return Fetch(sql, key).FirstOrDefault();
+        }
+
+        public dynamic FindBy()
+        {
+            return new Finder(this);
+        }
+    }
+
+    public class Finder: DynamicObject
+    {
+        private readonly DynamicModel _model;
+
+        public Finder(DynamicModel model)
+        {
+            _model = model;
+        }
+
+        public override bool TryInvokeMember(InvokeMemberBinder binder, object[] args, out object result)
+        {
+            var argList = new List<object>(args);
+            var sql = buildSql(binder, argList);
+            result = _model.Fetch(sql, argList.ToArray());
+            return true;
+        }
+
+        private string buildSql(InvokeMemberBinder binder, List<object> args)
+        {
+            var fieldNames = binder.Name.Split(new string[] { "And" }, StringSplitOptions.RemoveEmptyEntries);
+            var sql = new StringBuilder();
+            var columns = "*";
+            var orderBy = string.Empty;
+            if (args.Count>fieldNames.Length)
+            {
+                ProcessExtraArgs(binder, args, ref columns, ref orderBy);
+            }
+            sql.AppendFormat("SELECT {0} from {1} WHERE ", columns, _model.TableName);
+            AddWhereClause(fieldNames, sql);
+            AddOrderBy(orderBy, sql);
+            return sql.ToString();
+        }
+
+        private void AddOrderBy(string orderBy, StringBuilder sql)
+        {
+            if (orderBy!=string.Empty)
+            {
+                sql.AppendFormat(" ORDER BY {0}", orderBy);
+            }
+        }
+
+        private void AddWhereClause(string[] fieldNames, StringBuilder sql)
+        {
+            int paramCount = 0;
+            foreach (var name in fieldNames)
+            {
+                sql.AppendFormat("({0} = @{1})", name, paramCount);
+                paramCount++;
+                if (paramCount < fieldNames.Length)
+                {
+                    sql.Append(" AND ");
+                }
+            }
+        }
+
+        private void ProcessExtraArgs(InvokeMemberBinder binder, List<object> args, ref string columns, ref string orderBy)
+        {
+            var paramIndex = args.Count - binder.CallInfo.ArgumentNames.Count;
+            foreach (var paramName in binder.CallInfo.ArgumentNames)
+            {
+                switch (paramName)
+                {
+                    case "columns":
+                        columns = (string) args[paramIndex];
+                        break;
+                    case "orderBy":
+                        orderBy = (string)args[paramIndex];
+                        break;
+                }
+                args.RemoveAt(paramIndex);
+            }
         }
     }
 }

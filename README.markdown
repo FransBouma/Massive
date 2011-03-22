@@ -40,6 +40,17 @@ Now you can query thus:
 	var products = table.All();
 	//just grab from category 4. This uses named parameters
 	var productsFour = table.All(columns: "ProductName as Name", where: "WHERE categoryID=@0",args: 4);
+	
+You can also use ActiveRecord-style dynamic property queries like this:
+	var table = new Products();
+	// grab all products form category 4 like above, but using dynamic FindBy
+	var productsFour = table.FindBy().CategoryID(4, columns: "ProductName as Name");
+	// Order them by ProductName
+	var productsFour = table.FindBy().CategoryID(4, columns: "ProductName as Name", orderBy:"ProductName DESC");
+	// Find products by CategoryID AND ProductName
+	var productsFourCat = table.FindBy().CategoryIDAndProductName(4, "Cat");
+	
+Note that required query parameters must come before named parameters.
 
 You can also run ad-hoc queries as needed:
 	var result = tbl.Query("SELECT * FROM Categories");
