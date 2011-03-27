@@ -11,6 +11,14 @@ using System.Collections;
 using System.Text.RegularExpressions;
 
 namespace Massive {
+    /// <summary>
+    /// Can be used to define any function. Literally. By convention the first parameter will always be
+    /// the object it was invoked on, making delegates of this type similar to extension methods
+    /// </summary>
+    /// <param name="args">varialbe argument list</param>
+    /// <returns>anything</returns>
+    delegate dynamic DynamicDelegate(params object[] args);
+
     public static class ObjectExtensions {
         /// <summary>
         /// Extension method for adding in a bunch of parameters
@@ -87,13 +95,14 @@ namespace Massive {
     /// <summary>
     /// A class that wraps your database table in Dynamic Funtime
     /// </summary>
-    public  class DynamicModel {
+    public  class DynamicModel {        
         DbProviderFactory _factory;
         string _connectionString;
 
-        public DynamicModel(string connectionStringName= "", string tableName = "", string primaryKeyField ="") {
+        public DynamicModel(string connectionStringName= "", string tableName = "", string primaryKeyField ="", IDictionary<string, Delegate> prototype = null) {
             TableName = tableName == "" ?  this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
+            Prototype = prototype ?? new Dictionary<string, Delegate>();
             if (connectionStringName == "")
                 connectionStringName = ConfigurationManager.ConnectionStrings[0].Name;
             var _providerName = "System.Data.SqlClient";
@@ -117,6 +126,23 @@ namespace Massive {
                     var d = e as IDictionary<string, object>;
                     for (var i = 0; i < rdr.FieldCount; i++)
                         d.Add(rdr.GetName(i), rdr[i]);
+
+                    if (Prototype.Any())
+                    {
+                        foreach (var q in Prototype)
+                        {
+                            d.Add(q.Key, (DynamicDelegate)(a =>
+                            {
+                                var pList = new List<object>() { e };
+
+                                if (a != null && a.Length > 0)
+                                    pList.AddRange(a);
+
+                                return q.Value.DynamicInvoke(pList.ToArray());
+                            }));
+                        }
+                    }
+
                     yield return e;
                 }
             }
@@ -222,6 +248,13 @@ namespace Massive {
             return result;
         }
         public string TableName { get; set; }
+
+        /// <summary>
+        /// Stores a set of query callbacks that represent pre built queries. Each callback is passed the
+        /// object being executed
+        /// </summary>
+        public IDictionary<string, Delegate> Prototype { get; set; }
+
         /// <summary>
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
         /// </summary>
