@@ -15,7 +15,7 @@ namespace Massive {
         /// <summary>
         /// Extension method for adding in a bunch of parameters
         /// </summary>
-        public static void AddParams(this DbCommand cmd, object[] args) {
+        public static void AddParams(this DbCommand cmd, params object[] args) {
             foreach (var item in args) {
                 AddParam(cmd, item);
             }
@@ -109,7 +109,7 @@ namespace Massive {
         /// <summary>
         /// Enumerates the reader yielding the result - thanks to Jeroen Haegebaert
         /// </summary>
-        public IEnumerable<dynamic> Query(string sql, params object[] args) {
+        public virtual IEnumerable<dynamic> Query(string sql, params object[] args) {
             using (var conn = OpenConnection()) {
                 var rdr = CreateCommand(sql, conn, args).ExecuteReader(CommandBehavior.CloseConnection);
                 while (rdr.Read()) {
@@ -124,13 +124,13 @@ namespace Massive {
         /// <summary>
         /// Runs a query against the database
         /// </summary>
-        public IList<dynamic> Fetch(string sql, params object[] args) {
+        public virtual IList<dynamic> Fetch(string sql, params object[] args) {
             return Query(sql, args).ToList<dynamic>();
         }
         /// <summary>
         /// Returns a single result
         /// </summary>
-        public object Scalar(string sql, params object[] args) {
+        public virtual object Scalar(string sql, params object[] args) {
             object result = null;
             using (var conn = OpenConnection()) {
                 result = CreateCommand(sql, conn, args).ExecuteScalar();
@@ -152,7 +152,7 @@ namespace Massive {
         /// <summary>
         /// Returns and OpenConnection
         /// </summary>
-        public DbConnection OpenConnection() {
+        public virtual DbConnection OpenConnection() {
             var conn = _factory.CreateConnection();
             conn.ConnectionString = _connectionString;
             conn.Open();
@@ -163,7 +163,7 @@ namespace Massive {
         /// These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
         /// With a PK property (whatever PrimaryKeyField is set to) will be created at UPDATEs
         /// </summary>
-        public List<DbCommand> BuildCommands(params object[] things) {
+        public virtual List<DbCommand> BuildCommands(params object[] things) {
             var commands = new List<DbCommand>();
             foreach (var item in things) {
                 if (HasPrimaryKey(item)) {
@@ -180,17 +180,17 @@ namespace Massive {
         /// These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
         /// With a PK property (whatever PrimaryKeyField is set to) will be created at UPDATEs
         /// </summary>
-        public int Save(params object[] things) {
+        public virtual int Save(params object[] things) {
             var commands = BuildCommands(things);
             return Execute(commands);
         }
-        public int Execute(DbCommand command) {
+        public virtual int Execute(DbCommand command) {
             return Execute(new DbCommand[] { command });
         }
         /// <summary>
         /// Executes a series of DBCommands in a transaction
         /// </summary>
-        public int Execute(IEnumerable<DbCommand> commands) {
+        public virtual int Execute(IEnumerable<DbCommand> commands) {
             var result = 0;
             using (var conn = OpenConnection()) {
                 using (var tx = conn.BeginTransaction()) {
@@ -204,28 +204,28 @@ namespace Massive {
             }
             return result;
         }
-        public string PrimaryKeyField { get; set; }
+        public virtual string PrimaryKeyField { get; set; }
         /// <summary>
         /// Conventionally introspects the object passed in for a field that 
         /// looks like a PK. If you've named your PrimaryKeyField, this becomes easy
         /// </summary>
-        public bool HasPrimaryKey(object o) {
+        public virtual bool HasPrimaryKey(object o) {
             return o.ToDictionary().ContainsKey(PrimaryKeyField);
         }
         /// <summary>
         /// If the object passed in has a property with the same name as your PrimaryKeyField
         /// it is returned here.
         /// </summary>
-        public object GetPrimaryKey(object o) {
+        public virtual object GetPrimaryKey(object o) {
             object result = null;
             o.ToDictionary().TryGetValue(PrimaryKeyField, out result);
             return result;
         }
-        public string TableName { get; set; }
+        public virtual string TableName { get; set; }
         /// <summary>
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
         /// </summary>
-        public DbCommand CreateInsertCommand(object o) {
+        public virtual DbCommand CreateInsertCommand(object o) {
             DbCommand result = null;
             var expando = o.ToExpando();
             var settings = (IDictionary<string, object>)expando;
@@ -251,7 +251,7 @@ namespace Massive {
         /// <summary>
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
         /// </summary>
-        public DbCommand CreateUpdateCommand(object o, object key) {
+        public virtual DbCommand CreateUpdateCommand(object o, object key) {
             var expando = o.ToExpando();
             var settings = (IDictionary<string, object>)expando;
             var sbKeys = new StringBuilder();
@@ -279,7 +279,7 @@ namespace Massive {
         /// <summary>
         /// Removes one or more records from the DB according to the passed-in WHERE
         /// </summary>
-        public DbCommand CreateDeleteCommand(string where = "", object key = null, params object[] args) {
+        public virtual DbCommand CreateDeleteCommand(string where = "", object key = null, params object[] args) {
             var sql = string.Format("DELETE FROM {0} ", TableName);
             if (key != null) {
                 sql += string.Format("WHERE {0}=@0", PrimaryKeyField);
@@ -293,7 +293,7 @@ namespace Massive {
         /// Adds a record to the database. You can pass in an Anonymous object, an ExpandoObject,
         /// A regular old POCO, or a NameValueColletion from a Request.Form or Request.QueryString
         /// </summary>
-        public object Insert(object o) {
+        public virtual object Insert(object o) {
             dynamic result = 0;
             using (var conn = OpenConnection()) {
                 var cmd = CreateInsertCommand(o);
@@ -308,7 +308,7 @@ namespace Massive {
         /// Updates a record in the database. You can pass in an Anonymous object, an ExpandoObject,
         /// A regular old POCO, or a NameValueCollection from a Request.Form or Request.QueryString
         /// </summary>
-        public int Update(object o, object key) {
+        public virtual int Update(object o, object key) {
             return Execute(CreateUpdateCommand(o, key));
         }
         /// <summary>
@@ -321,7 +321,7 @@ namespace Massive {
         /// Returns all records complying with the passed-in WHERE clause and arguments, 
         /// ordered as specified, limited (TOP) by limit.
         /// </summary>
-        public IEnumerable<dynamic> All(string where = "", string orderBy = "", int limit = 0, string columns = "*", params object[] args) {
+        public virtual IEnumerable<dynamic> All(string where = "", string orderBy = "", int limit = 0, string columns = "*", params object[] args) {
             string sql = limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1} " : "SELECT {0} FROM {1} ";
             if (!string.IsNullOrEmpty(where))
                 sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
@@ -333,7 +333,7 @@ namespace Massive {
         /// <summary>
         /// Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords.
         /// </summary>
-        public dynamic Paged(string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage =1, params object[] args) {
+        public virtual dynamic Paged(string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage =1, params object[] args) {
             dynamic result = new ExpandoObject();
             var countSQL = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
             if (String.IsNullOrEmpty(orderBy))
@@ -358,7 +358,7 @@ namespace Massive {
         /// <summary>
         /// Returns a single row from the database
         /// </summary>
-        public dynamic Single(object key, string columns = "*") {
+        public virtual dynamic Single(object key, string columns = "*") {
             var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", columns,TableName, PrimaryKeyField);
             return Fetch(sql, key).FirstOrDefault();
         }
