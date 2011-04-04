@@ -91,7 +91,7 @@ namespace Massive {
         DbProviderFactory _factory;
         string _connectionString;
 
-        public DynamicModel(string connectionStringName= "", string tableName = "", string primaryKeyField ="") {
+        public DynamicModel(string connectionStringName= "", string tableName = "", string primaryKeyField ="", DbProviderFactory providerFactory = null) {
             TableName = tableName == "" ?  this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
             if (connectionStringName == "")
@@ -103,7 +103,12 @@ namespace Massive {
             } else {
                 throw new InvalidOperationException("Can't find a connection string with the name '" + connectionStringName + "'");
             }
-            _factory = DbProviderFactories.GetFactory(_providerName);
+            if (providerFactory == null) {
+                _factory = DbProviderFactories.GetFactory(_providerName);
+            }
+            else {
+                _factory = providerFactory;
+            }
             _connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
         }
         /// <summary>
