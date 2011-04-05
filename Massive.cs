@@ -33,7 +33,7 @@ namespace Massive {
                     p.Value = item.ToString();
                     p.DbType = DbType.String;
                     p.Size = 4000;
-                }else if(item.GetType()==typeof(ExpandoObject)){
+                } else if (item.GetType() == typeof(ExpandoObject)) {
                     var d = (IDictionary<string, object>)item;
                     p.Value = d.Values.FirstOrDefault();
                 } else {
@@ -51,13 +51,16 @@ namespace Massive {
         public static List<dynamic> ToExpandoList(this IDataReader rdr) {
             var result = new List<dynamic>();
             while (rdr.Read()) {
-                dynamic e = new ExpandoObject();
-                var d = e as IDictionary<string, object>;
-                for (int i = 0; i < rdr.FieldCount; i++)
-                    d.Add(rdr.GetName(i), rdr[i]);
-                result.Add(e);
+                result.Add(rdr.RecordToExpando());
             }
             return result;
+        }
+        public static dynamic RecordToExpando(this IDataReader rdr) {
+            dynamic e = new ExpandoObject();
+            var d = e as IDictionary<string, object>;
+            for (int i = 0; i < rdr.FieldCount; i++)
+                d.Add(rdr.GetName(i), rdr[i]);
+            return e;
         }
         /// <summary>
         /// Turns the object into an ExpandoObject
@@ -66,7 +69,7 @@ namespace Massive {
             var result = new ExpandoObject();
             var d = result as IDictionary<string, object>; //work with the Expando as a Dictionary
             if (o.GetType() == typeof(ExpandoObject)) return o; //shouldn't have to... but just in case
-            if (o.GetType() == typeof(NameValueCollection) || o.GetType().IsSubclassOf(typeof(NameValueCollection))){
+            if (o.GetType() == typeof(NameValueCollection) || o.GetType().IsSubclassOf(typeof(NameValueCollection))) {
                 var nv = (NameValueCollection)o;
                 nv.Cast<string>().Select(key => new KeyValuePair<string, object>(key, nv[key])).ToList().ForEach(i => d.Add(i));
             } else {
@@ -87,12 +90,12 @@ namespace Massive {
     /// <summary>
     /// A class that wraps your database table in Dynamic Funtime
     /// </summary>
-    public  class DynamicModel {
+    public class DynamicModel {
         DbProviderFactory _factory;
         string _connectionString;
 
-        public DynamicModel(string connectionStringName= "", string tableName = "", string primaryKeyField ="") {
-            TableName = tableName == "" ?  this.GetType().Name : tableName;
+        public DynamicModel(string connectionStringName = "", string tableName = "", string primaryKeyField = "") {
+            TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
             if (connectionStringName == "")
                 connectionStringName = ConfigurationManager.ConnectionStrings[0].Name;
@@ -111,21 +114,19 @@ namespace Massive {
         /// </summary>
         public virtual IEnumerable<dynamic> Query(string sql, params object[] args) {
             using (var conn = OpenConnection()) {
-                var rdr = CreateCommand(sql, conn, args).ExecuteReader(CommandBehavior.CloseConnection);
+                var rdr = CreateCommand(sql, conn, args).ExecuteReader();
                 while (rdr.Read()) {
-                    var e = new ExpandoObject();
-                    var d = e as IDictionary<string, object>;
-                    for (var i = 0; i < rdr.FieldCount; i++)
-                        d.Add(rdr.GetName(i), rdr[i]);
-                    yield return e;
+                    yield return rdr.RecordToExpando(); ;
                 }
             }
         }
-        /// <summary>
-        /// Runs a query against the database
-        /// </summary>
-        public virtual IList<dynamic> Fetch(string sql, params object[] args) {
-            return Query(sql, args).ToList<dynamic>();
+        public virtual IEnumerable<dynamic> Query(string sql, DbConnection connection, params object[] args) {
+            using (var rdr = CreateCommand(sql, connection, args).ExecuteReader()) {
+                while (rdr.Read()) {
+                    yield return rdr.RecordToExpando(); ;
+                }
+            }
+            
         }
         /// <summary>
         /// Returns a single result
@@ -136,13 +137,12 @@ namespace Massive {
                 result = CreateCommand(sql, conn, args).ExecuteScalar();
             }
             return result;
-        }  
+        }
         /// <summary>
         /// Creates a DBCommand that you can use for loving your database.
         /// </summary>
         DbCommand CreateCommand(string sql, DbConnection conn, params object[] args) {
-            DbCommand result = null;
-            result = _factory.CreateCommand();
+            var result = _factory.CreateCommand();
             result.Connection = conn;
             result.CommandText = sql;
             if (args.Length > 0)
@@ -153,10 +153,10 @@ namespace Massive {
         /// Returns and OpenConnection
         /// </summary>
         public virtual DbConnection OpenConnection() {
-            var conn = _factory.CreateConnection();
-            conn.ConnectionString = _connectionString;
-            conn.Open();
-            return conn;
+            var result = _factory.CreateConnection();
+            result.ConnectionString = _connectionString;
+            result.Open();
+            return result;
         }
         /// <summary>
         /// Builds a set of Insert and Update commands based on the passed-on objects.
@@ -167,8 +167,8 @@ namespace Massive {
             var commands = new List<DbCommand>();
             foreach (var item in things) {
                 if (HasPrimaryKey(item)) {
-                    commands.Add(CreateUpdateCommand(item,GetPrimaryKey(item)));
-                }else{
+                    commands.Add(CreateUpdateCommand(item, GetPrimaryKey(item)));
+                } else {
                     commands.Add(CreateInsertCommand(item));
                 }
             }
@@ -197,7 +197,7 @@ namespace Massive {
                     foreach (var cmd in commands) {
                         cmd.Connection = conn;
                         cmd.Transaction = tx;
-                        result+=cmd.ExecuteNonQuery();
+                        result += cmd.ExecuteNonQuery();
                     }
                     tx.Commit();
                 }
@@ -232,7 +232,7 @@ namespace Massive {
             var sbKeys = new StringBuilder();
             var sbVals = new StringBuilder();
             var stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2})";
-            result = CreateCommand(stub,null);
+            result = CreateCommand(stub, null);
             int counter = 0;
             foreach (var item in settings) {
                 sbKeys.AppendFormat("{0},", item.Key);
@@ -257,7 +257,7 @@ namespace Massive {
             var sbKeys = new StringBuilder();
             var stub = "UPDATE {0} SET {1} WHERE {2} = @{3}";
             var args = new List<object>();
-            var result = CreateCommand(stub,null);
+            var result = CreateCommand(stub, null);
             int counter = 0;
             foreach (var item in settings) {
                 var val = item.Value;
@@ -283,10 +283,10 @@ namespace Massive {
             var sql = string.Format("DELETE FROM {0} ", TableName);
             if (key != null) {
                 sql += string.Format("WHERE {0}=@0", PrimaryKeyField);
-                args = new object[]{key};
+                args = new object[] { key };
             } else if (!string.IsNullOrEmpty(where)) {
                 sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
-            } 
+            }
             return CreateCommand(sql, null, args);
         }
         /// <summary>
@@ -315,7 +315,7 @@ namespace Massive {
         /// Removes one or more records from the DB according to the passed-in WHERE
         /// </summary>
         public int Delete(object key = null, string where = "", params object[] args) {
-            return Execute(CreateDeleteCommand(where: where, key:key, args: args));
+            return Execute(CreateDeleteCommand(where: where, key: key, args: args));
         }
         /// <summary>
         /// Returns all records complying with the passed-in WHERE clause and arguments, 
@@ -327,13 +327,13 @@ namespace Massive {
                 sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
             if (!String.IsNullOrEmpty(orderBy))
                 sql += orderBy.Trim().StartsWith("order by", StringComparison.CurrentCultureIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
-            return Query(string.Format(sql, columns,TableName), args);
+            return Query(string.Format(sql, columns, TableName), args);
         }
 
         /// <summary>
         /// Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords.
         /// </summary>
-        public virtual dynamic Paged(string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage =1, params object[] args) {
+        public virtual dynamic Paged(string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage = 1, params object[] args) {
             dynamic result = new ExpandoObject();
             var countSQL = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
             if (String.IsNullOrEmpty(orderBy))
@@ -344,11 +344,11 @@ namespace Massive {
                     where = "WHERE " + where;
                 }
             }
-            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3} {4}) AS Paged ",columns,pageSize,orderBy,TableName, where);
-            var pageStart = (currentPage -1) * pageSize;
-            sql+= string.Format(" WHERE Row >={0} AND Row <={1}",pageStart, (pageStart + pageSize));
+            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3} {4}) AS Paged ", columns, pageSize, orderBy, TableName, where);
+            var pageStart = (currentPage - 1) * pageSize;
+            sql += string.Format(" WHERE Row >={0} AND Row <={1}", pageStart, (pageStart + pageSize));
             countSQL += where;
-            result.TotalRecords = Scalar(countSQL,args);
+            result.TotalRecords = Scalar(countSQL, args);
             result.TotalPages = result.TotalRecords / pageSize;
             if (result.TotalRecords % pageSize > 0)
                 result.TotalPages += 1;
@@ -359,8 +359,9 @@ namespace Massive {
         /// Returns a single row from the database
         /// </summary>
         public virtual dynamic Single(object key, string columns = "*") {
-            var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", columns,TableName, PrimaryKeyField);
-            return Fetch(sql, key).FirstOrDefault();
+            var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", columns, TableName, PrimaryKeyField);
+            var items = Query(sql, key).ToList();
+            return items.FirstOrDefault();
         }
     }
 }
