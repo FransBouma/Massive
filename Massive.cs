@@ -103,12 +103,7 @@ namespace Massive {
             } else {
                 throw new InvalidOperationException("Can't find a connection string with the name '" + connectionStringName + "'");
             }
-            if (providerFactory == null) {
-                _factory = DbProviderFactories.GetFactory(_providerName);
-            }
-            else {
-                _factory = providerFactory;
-            }
+            _factory = providerFactory == null ? DbProviderFactories.GetFactory(_providerName) : providerFactory;
             _connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
         }
         /// <summary>
