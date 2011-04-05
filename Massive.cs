@@ -7,8 +7,6 @@ using System.Data.Common;
 using System.Dynamic;
 using System.Linq;
 using System.Text;
-using System.Collections;
-using System.Text.RegularExpressions;
 
 namespace Massive {
     public static class ObjectExtensions {
