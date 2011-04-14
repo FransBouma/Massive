@@ -41,7 +41,7 @@ namespace Massive {
                 }
                 //from DataChomp
                 if (item.GetType() == typeof(string))
-                    p.Size = 4000;
+                    p.Size = 4000 > ((string)item).Length ? 4000 : ((string)item).Length;
             }
             cmd.Parameters.Add(p);
         }
