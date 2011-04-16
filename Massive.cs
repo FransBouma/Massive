@@ -40,8 +40,11 @@ namespace Massive {
                     p.Value = item;
                 }
                 //from DataChomp
+				// jared: added a check for the length here
+				// if the length is greater than 4000 then it is
+				// assumed we are saving a ntext or nvarchar(max)
                 if (item.GetType() == typeof(string))
-                    p.Size = 4000 > ((string)item).Length ? 4000 : ((string)item).Length;
+                    p.Size = ((string)item).Length > 4000 ? -1 : 4000;
             }
             cmd.Parameters.Add(p);
         }
