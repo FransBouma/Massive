@@ -7,8 +7,6 @@ using System.Data.Common;
 using System.Dynamic;
 using System.Linq;
 using System.Text;
-using System.Collections;
-using System.Text.RegularExpressions;
 
 namespace Massive {
     public static class ObjectExtensions {
@@ -39,10 +37,6 @@ namespace Massive {
                 } else {
                     p.Value = item;
                 }
-                //from DataChomp
-				// jared: added a check for the length here
-				// if the length is greater than 4000 then it is
-				// assumed we are saving a ntext or nvarchar(max)
                 if (item.GetType() == typeof(string))
                     p.Size = ((string)item).Length > 4000 ? -1 : 4000;
             }
@@ -129,7 +123,7 @@ namespace Massive {
                     yield return rdr.RecordToExpando(); ;
                 }
             }
-            
+
         }
         /// <summary>
         /// Returns a single result
