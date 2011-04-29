@@ -56,7 +56,7 @@ namespace Massive {
             dynamic e = new ExpandoObject();
             var d = e as IDictionary<string, object>;
             for (int i = 0; i < rdr.FieldCount; i++)
-                d.Add(rdr.GetName(i), rdr[i]);
+                d.Add(rdr.GetName(i), DBNull.Value.Equals(rdr[i]) ? null : rdr[i]);
             return e;
         }
         /// <summary>
