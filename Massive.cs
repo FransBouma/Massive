@@ -23,7 +23,8 @@ namespace Massive {
         /// </summary>
         public static void AddParam(this DbCommand cmd, object item) {
             var p = cmd.CreateParameter();
-            p.ParameterName = string.Format("@{0}", cmd.Parameters.Count);
+            var prefix = cmd.GetType().FullName.Contains("System.Data.OracleClient") ? ":" : "@";
+            p.ParameterName = string.Format("{0}{1}", prefix, cmd.Parameters.Count);
             if (item == null) {
                 p.Value = DBNull.Value;
             } else {
@@ -90,6 +91,7 @@ namespace Massive {
     public class DynamicModel {
         DbProviderFactory _factory;
         string _connectionString;
+        string _prefix = "@";
 
         public DynamicModel(string connectionStringName = "", string tableName = "", string primaryKeyField = "") {
             TableName = tableName == "" ? this.GetType().Name : tableName;
@@ -105,6 +107,7 @@ namespace Massive {
             }
             _factory = DbProviderFactories.GetFactory(_providerName);
             _connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
+            _prefix = _factory.GetType().FullName.Contains("System.Data.OracleClient") ? ":" : "@";
         }
         /// <summary>
         /// Enumerates the reader yielding the result - thanks to Jeroen Haegebaert
@@ -233,7 +236,7 @@ namespace Massive {
             int counter = 0;
             foreach (var item in settings) {
                 sbKeys.AppendFormat("{0},", item.Key);
-                sbVals.AppendFormat("@{0},", counter.ToString());
+                sbVals.AppendFormat("{0}{1},", _prefix, counter.ToString());
                 result.AddParam(item.Value);
                 counter++;
             }
@@ -252,7 +255,7 @@ namespace Massive {
             var expando = o.ToExpando();
             var settings = (IDictionary<string, object>)expando;
             var sbKeys = new StringBuilder();
-            var stub = "UPDATE {0} SET {1} WHERE {2} = @{3}";
+            var stub = "UPDATE {0} SET {1} WHERE {2} = "+_prefix+"{3}";
             var args = new List<object>();
             var result = CreateCommand(stub, null);
             int counter = 0;
@@ -260,7 +263,7 @@ namespace Massive {
                 var val = item.Value;
                 if (!item.Key.Equals(PrimaryKeyField, StringComparison.CurrentCultureIgnoreCase) && item.Value != null) {
                     result.AddParam(val);
-                    sbKeys.AppendFormat("{0} = @{1}, \r\n", item.Key, counter.ToString());
+                    sbKeys.AppendFormat("{0} = {1}{2}, \r\n", item.Key, _prefix, counter.ToString());
                     counter++;
                 }
             }
@@ -279,7 +282,7 @@ namespace Massive {
         public virtual DbCommand CreateDeleteCommand(string where = "", object key = null, params object[] args) {
             var sql = string.Format("DELETE FROM {0} ", TableName);
             if (key != null) {
-                sql += string.Format("WHERE {0}=@0", PrimaryKeyField);
+                sql += string.Format("WHERE {0}={1}0", PrimaryKeyField, _prefix);
                 args = new object[] { key };
             } else if (!string.IsNullOrEmpty(where)) {
                 sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
@@ -296,8 +299,10 @@ namespace Massive {
                 var cmd = CreateInsertCommand(o);
                 cmd.Connection = conn;
                 cmd.ExecuteNonQuery();
-                cmd.CommandText = "SELECT @@IDENTITY as newID";
-                result = cmd.ExecuteScalar();
+                if (!_factory.GetType().FullName.Contains("System.Data.OracleClient")) {
+                        cmd.CommandText = "SELECT @@IDENTITY as newID";
+                        result = cmd.ExecuteScalar();
+                }
             }
             return result;
         }
@@ -362,3 +367,4 @@ namespace Massive {
         }
     }
 }
+
