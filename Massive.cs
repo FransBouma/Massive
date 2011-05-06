@@ -23,7 +23,7 @@ namespace Massive {
         /// </summary>
         public static void AddParam(this DbCommand cmd, object item) {
             var p = cmd.CreateParameter();
-            var prefix = cmd.GetType().FullName.Contains("System.Data.OracleClient") ? ":" : "@";
+            var prefix = cmd.GetType().FullName.Contains("Oracle") ? ":" : "@";
             p.ParameterName = string.Format("{0}{1}", prefix, cmd.Parameters.Count);
             if (item == null) {
                 p.Value = DBNull.Value;
@@ -107,7 +107,7 @@ namespace Massive {
             }
             _factory = DbProviderFactories.GetFactory(_providerName);
             _connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
-            _prefix = _factory.GetType().FullName.Contains("System.Data.OracleClient") ? ":" : "@";
+            _prefix = _factory.GetType().FullName.Contains("Oracle") ? ":" : "@";
         }
         /// <summary>
         /// Enumerates the reader yielding the result - thanks to Jeroen Haegebaert
@@ -299,7 +299,7 @@ namespace Massive {
                 var cmd = CreateInsertCommand(o);
                 cmd.Connection = conn;
                 cmd.ExecuteNonQuery();
-                if (!_factory.GetType().FullName.Contains("System.Data.OracleClient")) {
+                if (!_factory.GetType().FullName.Contains("Oracle")) {
                         cmd.CommandText = "SELECT @@IDENTITY as newID";
                         result = cmd.ExecuteScalar();
                 }
