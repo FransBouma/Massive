@@ -23,7 +23,10 @@ namespace Massive {
         /// </summary>
         public static void AddParam(this DbCommand cmd, object item) {
             var p = cmd.CreateParameter();
-            p.ParameterName = string.Format("@{0}", cmd.Parameters.Count);
+            if(cmd.Connection.ToString() == "System.Data.OracleClient.OracleConnection")
+                p.ParameterName = string.Format(":{0}", cmd.Parameters.Count);
+            else
+                p.ParameterName = string.Format("@{0}", cmd.Parameters.Count);
             if (item == null) {
                 p.Value = DBNull.Value;
             } else {
