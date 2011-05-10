@@ -258,7 +258,7 @@ namespace Massive {
             int counter = 0;
             foreach (var item in settings) {
                 var val = item.Value;
-                if (!item.Key.Equals(PrimaryKeyField, StringComparison.CurrentCultureIgnoreCase) && item.Value != null) {
+                if (!item.Key.Equals(PrimaryKeyField, StringComparison.CurrentCultureIgnoreCase)) {
                     result.AddParam(val);
                     sbKeys.AppendFormat("{0} = @{1}, \r\n", item.Key, counter.ToString());
                     counter++;
