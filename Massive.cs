@@ -88,24 +88,42 @@ namespace Massive {
     /// A class that wraps your database table in Dynamic Funtime
     /// </summary>
     public class DynamicModel {
-        DbProviderFactory _factory;
-        string _connectionString;
+        public DynamicModel(string connectionStringName = null, string tableName = null, string primaryKeyField = "ID")
+        {
+            ProviderName = "System.Data.SqlClient";
+            TableName = tableName ?? GetType().Name;
+            PrimaryKeyField = primaryKeyField;
 
-        public DynamicModel(string connectionStringName = "", string tableName = "", string primaryKeyField = "") {
-            TableName = tableName == "" ? this.GetType().Name : tableName;
-            PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
-            if (connectionStringName == "")
+            if (connectionStringName == null && ConfigurationManager.ConnectionStrings.Count > 0)
                 connectionStringName = ConfigurationManager.ConnectionStrings[0].Name;
-            var _providerName = "System.Data.SqlClient";
-            if (ConfigurationManager.ConnectionStrings[connectionStringName] != null) {
-                if (!string.IsNullOrEmpty(ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName))
-                    _providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
-            } else {
-                throw new InvalidOperationException("Can't find a connection string with the name '" + connectionStringName + "'");
+
+            if (connectionStringName != null) {
+                if (ConfigurationManager.ConnectionStrings[connectionStringName] != null) {
+                    ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
+                    if (!string.IsNullOrEmpty(ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName)) 
+                        ProviderName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
+                }
+                else {
+                    throw new InvalidOperationException("Can't find a connection string with the name '" + connectionStringName + "'");
+                }
             }
-            _factory = DbProviderFactories.GetFactory(_providerName);
-            _connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
         }
+        /// <summary>
+        /// Gets or sets the connection string of the database.
+        /// </summary>
+        public virtual string ConnectionString { get; set; }
+        /// <summary>
+        /// Gets or sets the database provider name. Defaults to "System.Data.SqlClient".
+        /// </summary>
+        public virtual string ProviderName { get; set; }
+        /// <summary>
+        /// Gets or sets the table name. Defaults to the type name.
+        /// </summary>
+        public virtual string TableName { get; set; }
+        /// <summary>
+        /// Gets or sets the primary key field. Defaults to "ID"
+        /// </summary>
+        public virtual string PrimaryKeyField { get; set; }
         /// <summary>
         /// Enumerates the reader yielding the result - thanks to Jeroen Haegebaert
         /// </summary>
@@ -123,7 +141,6 @@ namespace Massive {
                     yield return rdr.RecordToExpando(); ;
                 }
             }
-
         }
         /// <summary>
         /// Returns a single result
@@ -139,7 +156,7 @@ namespace Massive {
         /// Creates a DBCommand that you can use for loving your database.
         /// </summary>
         DbCommand CreateCommand(string sql, DbConnection conn, params object[] args) {
-            var result = _factory.CreateCommand();
+            var result = GetDbProviderFactory().CreateCommand();
             result.Connection = conn;
             result.CommandText = sql;
             if (args.Length > 0)
@@ -147,11 +164,11 @@ namespace Massive {
             return result;
         }
         /// <summary>
-        /// Returns and OpenConnection
+        /// Returns an Open Connection
         /// </summary>
         public virtual DbConnection OpenConnection() {
-            var result = _factory.CreateConnection();
-            result.ConnectionString = _connectionString;
+            var result = GetDbProviderFactory().CreateConnection();
+            result.ConnectionString = ConnectionString;
             result.Open();
             return result;
         }
@@ -201,7 +218,6 @@ namespace Massive {
             }
             return result;
         }
-        public virtual string PrimaryKeyField { get; set; }
         /// <summary>
         /// Conventionally introspects the object passed in for a field that 
         /// looks like a PK. If you've named your PrimaryKeyField, this becomes easy
@@ -218,7 +234,6 @@ namespace Massive {
             o.ToDictionary().TryGetValue(PrimaryKeyField, out result);
             return result;
         }
-        public virtual string TableName { get; set; }
         /// <summary>
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
         /// </summary>
@@ -228,7 +243,7 @@ namespace Massive {
             var settings = (IDictionary<string, object>)expando;
             var sbKeys = new StringBuilder();
             var sbVals = new StringBuilder();
-            var stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2})";
+            var stub = "INSERT INTO [{0}] ({1}) \r\n VALUES ({2})";
             result = CreateCommand(stub, null);
             int counter = 0;
             foreach (var item in settings) {
@@ -252,7 +267,7 @@ namespace Massive {
             var expando = o.ToExpando();
             var settings = (IDictionary<string, object>)expando;
             var sbKeys = new StringBuilder();
-            var stub = "UPDATE {0} SET {1} WHERE {2} = @{3}";
+            var stub = "UPDATE [{0}] SET {1} WHERE {2} = @{3}";
             var args = new List<object>();
             var result = CreateCommand(stub, null);
             int counter = 0;
@@ -277,7 +292,7 @@ namespace Massive {
         /// Removes one or more records from the DB according to the passed-in WHERE
         /// </summary>
         public virtual DbCommand CreateDeleteCommand(string where = "", object key = null, params object[] args) {
-            var sql = string.Format("DELETE FROM {0} ", TableName);
+            var sql = string.Format("DELETE FROM [{0}] ", TableName);
             if (key != null) {
                 sql += string.Format("WHERE {0}=@0", PrimaryKeyField);
                 args = new object[] { key };
@@ -319,7 +334,7 @@ namespace Massive {
         /// ordered as specified, limited (TOP) by limit.
         /// </summary>
         public virtual IEnumerable<dynamic> All(string where = "", string orderBy = "", int limit = 0, string columns = "*", params object[] args) {
-            string sql = limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1} " : "SELECT {0} FROM {1} ";
+            string sql = limit > 0 ? "SELECT TOP " + limit + " {0} FROM [{1}] " : "SELECT {0} FROM [{1}] ";
             if (!string.IsNullOrEmpty(where))
                 sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
             if (!String.IsNullOrEmpty(orderBy))
@@ -332,7 +347,7 @@ namespace Massive {
         /// </summary>
         public virtual dynamic Paged(string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage = 1, params object[] args) {
             dynamic result = new ExpandoObject();
-            var countSQL = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
+            var countSQL = string.Format("SELECT COUNT({0}) FROM [{1}]", PrimaryKeyField, TableName);
             if (String.IsNullOrEmpty(orderBy))
                 orderBy = PrimaryKeyField;
 
@@ -341,7 +356,7 @@ namespace Massive {
                     where = "WHERE " + where;
                 }
             }
-            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3} {4}) AS Paged ", columns, pageSize, orderBy, TableName, where);
+            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM [{3}] {4}) AS Paged ", columns, pageSize, orderBy, TableName, where);
             var pageStart = (currentPage - 1) * pageSize;
             sql += string.Format(" WHERE Row > {0} AND Row <={1}", pageStart, (pageStart + pageSize));
             countSQL += where;
@@ -356,9 +371,12 @@ namespace Massive {
         /// Returns a single row from the database
         /// </summary>
         public virtual dynamic Single(object key, string columns = "*") {
-            var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", columns, TableName, PrimaryKeyField);
+            var sql = string.Format("SELECT {0} FROM [{1}] WHERE {2} = @0", columns, TableName, PrimaryKeyField);
             var items = Query(sql, key).ToList();
             return items.FirstOrDefault();
+        }
+        protected DbProviderFactory GetDbProviderFactory() {
+            return DbProviderFactories.GetFactory(ProviderName);
         }
     }
 }
