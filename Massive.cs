@@ -313,7 +313,7 @@ namespace Massive {
                 for(int i=0; i< primaryKeyElem.Length ; i++)
                 {
                     if(i>0) whereClause += " AND ";
-                    whereClause = whereClause + key[i] + " = \r\n" + (counter+i).ToString();
+                    whereClause = whereClause +  string.Format("{0} = @{1}\r\n",primaryKeyElem[i],counter + i);
                 }
                 result.CommandText += whereClause;
             }
@@ -325,13 +325,13 @@ namespace Massive {
         /// </summary>
         public virtual DbCommand CreateDeleteCommand(string where = "", bool byKey=false, params object[] args)
         {
-            var sql = string.Format("DELETE FROM {0} ", TableName);
+            var sql = string.Format("DELETE FROM {0} WHERE ", TableName);
             if (byKey) {
                 string[] primaryKeyElem = PrimaryKeyField.Split(_keyColSeparator).Select(x => x.Trim()).ToArray<string>();
                 for(int i=0; i<primaryKeyElem.Length;i++)
                 {
-                    if (i == 0) sql += string.Format("WHERE {0}=@{1}", primaryKeyElem[i], i);
-                    else sql += string.Format(" AND {0}=@{1}", primaryKeyElem[i], i);
+                    if(i>0) sql += " AND ";
+                    sql += string.Format("{0} = @{1}\r\n", primaryKeyElem[i], i);
                 }
             } 
             else if (!string.IsNullOrEmpty(where)) {
@@ -410,12 +410,12 @@ namespace Massive {
         /// </summary>
         public virtual dynamic Single(string columns ,params object[] key)
         {
-            var sql = string.Format("SELECT {0} FROM {1}", columns, TableName);
+            var sql = string.Format("SELECT {0} FROM {1} WHERE ", columns, TableName);
             string[] primaryKeyElem = (PrimaryKeyField.Split(_keyColSeparator)).Select(x => x.Trim()).ToArray<string>();
             for(int i=0; i<primaryKeyElem.Length;i++)
             {
-                if (i == 0) sql = sql + " WHERE " + primaryKeyElem[i] + " = @" + i.ToString();
-                else sql = sql + " AND " + primaryKeyElem[i] + " = @" + i.ToString();
+                if(i > 0) sql += " AND ";
+                sql = sql + string.Format("{0} = @{1}\r\n", primaryKeyElem[i], i);
             }
             var items = Query(sql, key).ToList();
             return items.FirstOrDefault();
