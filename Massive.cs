@@ -90,8 +90,9 @@ namespace Massive {
     public class DynamicModel {
         DbProviderFactory _factory;
         string _connectionString;
+        char _keyColSeparator;
 
-        public DynamicModel(string connectionStringName = "", string tableName = "", string primaryKeyField = "") {
+        public DynamicModel(string connectionStringName = "", string tableName = "", string primaryKeyField = "", char keyColSeparator=',') {
             TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
             if (connectionStringName == "")
@@ -105,6 +106,7 @@ namespace Massive {
             }
             _factory = DbProviderFactories.GetFactory(_providerName);
             _connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
+            _keyColSeparator = keyColSeparator;
         }
         /// <summary>
         /// Enumerates the reader yielding the result - thanks to Jeroen Haegebaert
@@ -202,22 +204,44 @@ namespace Massive {
             return result;
         }
         public virtual string PrimaryKeyField { get; set; }
+        public virtual char KeyColSeparator { get; set; }
         /// <summary>
         /// Conventionally introspects the object passed in for a field that 
         /// looks like a PK. If you've named your PrimaryKeyField, this becomes easy
         /// </summary>
-        public virtual bool HasPrimaryKey(object o) {
-            return o.ToDictionary().ContainsKey(PrimaryKeyField);
+        public virtual bool HasPrimaryKey(object o)
+        {
+            string[] primaryKeyElem = PrimaryKeyField.Split(_keyColSeparator).Select(x => x.Trim()).ToArray<string>();
+            foreach (string keyElem in primaryKeyElem)
+            {
+                IDictionary<string,object> dict = o.ToDictionary();
+                if (!dict.ContainsKey(keyElem)) return false;
+                else if (dict[keyElem] == null) return false;
+            }
+            return true;
         }
         /// <summary>
         /// If the object passed in has a property with the same name as your PrimaryKeyField
         /// it is returned here.
         /// </summary>
-        public virtual object GetPrimaryKey(object o) {
-            object result = null;
-            o.ToDictionary().TryGetValue(PrimaryKeyField, out result);
-            return result;
+        public virtual object GetPrimaryKey(object o)
+        {
+            int count = 0;
+            object[] result;
+            string[] primaryKeyElem = PrimaryKeyField.Split(_keyColSeparator).Select(x => x.Trim()).ToArray<string>();
+
+            result = new object[primaryKeyElem.Length];
+            for(int i=0 ; i<primaryKeyElem .Length;i++)
+            {
+                object keyValElem = null;
+                o.ToDictionary().TryGetValue(primaryKeyElem[i], out keyValElem);
+                if (keyValElem != null) result[i]=keyValElem;
+                count++;
+            }
+            if (count > 0) return result;
+            else return null;
         }
+
         public virtual string TableName { get; set; }
         /// <summary>
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
@@ -248,40 +272,69 @@ namespace Massive {
         /// <summary>
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
         /// </summary>
-        public virtual DbCommand CreateUpdateCommand(object o, object key) {
+        public virtual DbCommand CreateUpdateCommand(object o, params object[] key)
+        {
             var expando = o.ToExpando();
             var settings = (IDictionary<string, object>)expando;
             var sbKeys = new StringBuilder();
-            var stub = "UPDATE {0} SET {1} WHERE {2} = @{3}";
+            var stub = "UPDATE {0} SET {1} WHERE ";
             var args = new List<object>();
             var result = CreateCommand(stub, null);
+
+            string[] primaryKeyElem = PrimaryKeyField.Split(_keyColSeparator).Select(x => x.Trim()).ToArray<string>();
+
             int counter = 0;
-            foreach (var item in settings) {
+
+            foreach (var item in settings)
+            {
                 var val = item.Value;
-                if (!item.Key.Equals(PrimaryKeyField, StringComparison.CurrentCultureIgnoreCase) && item.Value != null) {
+                bool match =false;
+
+                foreach (string keyElem in primaryKeyElem)
+                    if(item.Key.Equals(keyElem,StringComparison.CurrentCultureIgnoreCase) && item.Value !=null) match=true;
+
+                if (!match)
+                {
                     result.AddParam(val);
                     sbKeys.AppendFormat("{0} = @{1}, \r\n", item.Key, counter.ToString());
                     counter++;
                 }
             }
-            if (counter > 0) {
+            if (counter > 0)
+            {
                 //add the key
-                result.AddParam(key);
+                foreach (object elem in key) result.AddParam(elem);
+
                 //strip the last commas
                 var keys = sbKeys.ToString().Substring(0, sbKeys.Length - 4);
-                result.CommandText = string.Format(stub, TableName, keys, PrimaryKeyField, counter);
-            } else throw new InvalidOperationException("No parsable object was sent in - could not divine any name/value pairs");
+                result.CommandText = string.Format(stub, TableName, keys);
+
+                string whereClause="";
+                for(int i=0; i< primaryKeyElem.Length ; i++)
+                {
+                    if(i>0) whereClause += " AND ";
+                    whereClause = whereClause + key[i] + " = \r\n" + (counter+i).ToString();
+                }
+                result.CommandText += whereClause;
+            }
+            else throw new InvalidOperationException("No parsable object was sent in - could not divine any name/value pairs");
             return result;
         }
         /// <summary>
         /// Removes one or more records from the DB according to the passed-in WHERE
         /// </summary>
-        public virtual DbCommand CreateDeleteCommand(string where = "", object key = null, params object[] args) {
+        public virtual DbCommand CreateDeleteCommand(string where = "", bool byKey=false, params object[] args)
+        {
             var sql = string.Format("DELETE FROM {0} ", TableName);
-            if (key != null) {
-                sql += string.Format("WHERE {0}=@0", PrimaryKeyField);
-                args = new object[] { key };
-            } else if (!string.IsNullOrEmpty(where)) {
+            if (byKey) {
+                string[] primaryKeyElem = PrimaryKeyField.Split(_keyColSeparator).Select(x => x.Trim()).ToArray<string>();
+                for(int i=0; i<primaryKeyElem.Length;i++)
+                {
+                    if (i == 0) sql += string.Format("WHERE {0}=@{1}", primaryKeyElem[i], i);
+                    else sql += string.Format(" AND {0}=@{1}", primaryKeyElem[i], i);
+                }
+            } 
+            else if (!string.IsNullOrEmpty(where)) {
                 sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
             }
             return CreateCommand(sql, null, args);
@@ -305,14 +358,14 @@ namespace Massive {
         /// Updates a record in the database. You can pass in an Anonymous object, an ExpandoObject,
         /// A regular old POCO, or a NameValueCollection from a Request.Form or Request.QueryString
         /// </summary>
-        public virtual int Update(object o, object key) {
+        public virtual int Update(object o, params object[] key) {
             return Execute(CreateUpdateCommand(o, key));
         }
         /// <summary>
         /// Removes one or more records from the DB according to the passed-in WHERE
         /// </summary>
-        public int Delete(object key = null, string where = "", params object[] args) {
-            return Execute(CreateDeleteCommand(where: where, key: key, args: args));
+        public int Delete(bool byKey = false, string where = "", params object[] args) {
+            return Execute(CreateDeleteCommand(where: where, byKey: byKey, args: args));
         }
         /// <summary>
         /// Returns all records complying with the passed-in WHERE clause and arguments, 
@@ -355,10 +408,22 @@ namespace Massive {
         /// <summary>
         /// Returns a single row from the database
         /// </summary>
-        public virtual dynamic Single(object key, string columns = "*") {
-            var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", columns, TableName, PrimaryKeyField);
+        public virtual dynamic Single(string columns ,params object[] key)
+        {
+            var sql = string.Format("SELECT {0} FROM {1}", columns, TableName);
+            string[] primaryKeyElem = (PrimaryKeyField.Split(_keyColSeparator)).Select(x => x.Trim()).ToArray<string>();
+            for(int i=0; i<primaryKeyElem.Length;i++)
+            {
+                if (i == 0) sql = sql + " WHERE " + primaryKeyElem[i] + " = @" + i.ToString();
+                else sql = sql + " AND " + primaryKeyElem[i] + " = @" + i.ToString();
+            }
             var items = Query(sql, key).ToList();
             return items.FirstOrDefault();
+        }
+
+        public virtual dynamic Single(params object[] key)
+        {
+            return Single("*" ,key);
         }
     }
 }
