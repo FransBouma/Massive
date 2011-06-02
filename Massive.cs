@@ -15,7 +15,12 @@ namespace Massive {
         /// </summary>
         public static void AddParams(this DbCommand cmd, params object[] args) {
             foreach (var item in args) {
-                AddParam(cmd, item);
+                if (item.GetType().ToString() == "System.Object[]")
+                {
+                    object[] elems = (object[])item;
+                    foreach (object elment in elems) AddParam(cmd, elment);
+                }
+                else AddParam(cmd, item);
             }
         }
         /// <summary>
@@ -161,7 +166,7 @@ namespace Massive {
             return result;
         }
         /// <summary>
-        /// Builds a set of Insert and Update commands based on the passed-on objects.
+        /// Builds a set of Insert, Update, Delete commands based on the passed-on objects.
         /// These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
         /// With a PK property (whatever PrimaryKeyField is set to) will be created at UPDATEs
         /// </summary>
@@ -169,7 +174,8 @@ namespace Massive {
             var commands = new List<DbCommand>();
             foreach (var item in things) {
                 if (HasPrimaryKey(item)) {
-                    commands.Add(CreateUpdateCommand(item, GetPrimaryKey(item)));
+                    if (ToBeRemoved(item)) commands.Add(CreateDeleteCommand(byKey: true, args: GetPrimaryKey(item)));
+                    else commands.Add(CreateUpdateCommand(item, GetPrimaryKey(item)));
                 } else {
                     commands.Add(CreateInsertCommand(item));
                 }
@@ -223,13 +229,24 @@ namespace Massive {
         /// </summary>
         public virtual bool HasPrimaryKey(object o)
         {
+            IDictionary<string, object> dict = o.ToDictionary();
             foreach (string keyElem in _primaryKeySplitted)
-            {
-                IDictionary<string,object> dict = o.ToDictionary();
-                if (!dict.ContainsKey(keyElem)) return false;
-                else if (dict[keyElem] == null) return false;
-            }
+                if (!dict.ContainsKey(keyElem) || dict[keyElem] == null) return false;
             return true;
+        }
+        /// <summary>
+        /// Return true if the object must be removed from the database
+        /// The object must provide a boolean 'Remove' to allow this detection
+        /// </summary>
+        public virtual bool ToBeRemoved(object o)
+        {
+            IDictionary<string, object> dict = o.ToDictionary();
+            if (dict.ContainsKey("Remove"))
+            {
+                if (dict["Remove"] != null && (bool)dict["Remove"] == true) return true;
+                else return false;
+            }
+            else return false;
         }
         /// <summary>
         /// If the object passed in has a property with the same name as your PrimaryKeyField
@@ -348,7 +365,7 @@ namespace Massive {
         /// <summary>
         /// Removes one or more records from the DB according to the passed-in WHERE
         /// </summary>
-        public virtual DbCommand CreateDeleteCommand(string where = "", bool byKey=false, params object[] args)
+        public virtual DbCommand  CreateDeleteCommand(string where = "", bool byKey=false, params object[] args)
         {
             var sql = string.Format("DELETE FROM {0} WHERE ",TableName);
             if (byKey) {
