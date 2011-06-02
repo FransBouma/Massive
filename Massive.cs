@@ -90,10 +90,14 @@ namespace Massive {
     public class DynamicModel {
         DbProviderFactory _factory;
         string _connectionString;
-        char _keyColSeparator;
+
+        string _primaryKeyField;
+        string[] _primaryKeySplitted;
+        string _tableName;
 
         public DynamicModel(string connectionStringName = "", string tableName = "", string primaryKeyField = "", char keyColSeparator=',') {
             TableName = tableName == "" ? this.GetType().Name : tableName;
+            KeyColSeparator = keyColSeparator;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
             if (connectionStringName == "")
                 connectionStringName = ConfigurationManager.ConnectionStrings[0].Name;
@@ -106,7 +110,6 @@ namespace Massive {
             }
             _factory = DbProviderFactories.GetFactory(_providerName);
             _connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
-            _keyColSeparator = keyColSeparator;
         }
         /// <summary>
         /// Enumerates the reader yielding the result - thanks to Jeroen Haegebaert
@@ -203,7 +206,16 @@ namespace Massive {
             }
             return result;
         }
-        public virtual string PrimaryKeyField { get; set; }
+        public virtual string PrimaryKeyField { 
+            get{
+                 return _primaryKeyField; 
+               }
+ 
+            set{
+                _primaryKeyField=value;
+                _primaryKeySplitted = _primaryKeyField.Split(KeyColSeparator).Select(x => x.Trim()).ToArray<string>();
+               }
+        }
         public virtual char KeyColSeparator { get; set; }
         /// <summary>
         /// Conventionally introspects the object passed in for a field that 
@@ -211,8 +223,7 @@ namespace Massive {
         /// </summary>
         public virtual bool HasPrimaryKey(object o)
         {
-            string[] primaryKeyElem = PrimaryKeyField.Split(_keyColSeparator).Select(x => x.Trim()).ToArray<string>();
-            foreach (string keyElem in primaryKeyElem)
+            foreach (string keyElem in _primaryKeySplitted)
             {
                 IDictionary<string,object> dict = o.ToDictionary();
                 if (!dict.ContainsKey(keyElem)) return false;
@@ -228,13 +239,12 @@ namespace Massive {
         {
             int count = 0;
             object[] result;
-            string[] primaryKeyElem = PrimaryKeyField.Split(_keyColSeparator).Select(x => x.Trim()).ToArray<string>();
 
-            result = new object[primaryKeyElem.Length];
-            for(int i=0 ; i<primaryKeyElem .Length;i++)
+            result = new object[_primaryKeySplitted.Length];
+            for (int i = 0; i < _primaryKeySplitted.Length; i++)
             {
                 object keyValElem = null;
-                o.ToDictionary().TryGetValue(primaryKeyElem[i], out keyValElem);
+                o.ToDictionary().TryGetValue(_primaryKeySplitted[i], out keyValElem);
                 if (keyValElem != null) result[i]=keyValElem;
                 count++;
             }
@@ -242,7 +252,24 @@ namespace Massive {
             else return null;
         }
 
-        public virtual string TableName { get; set; }
+        public virtual string TableName
+        {
+            get
+            {
+                return _tableName;
+            }
+            set
+            {
+                int counter = 0;
+                _tableName = string.Empty;
+                foreach (string part in value.Split('.'))
+                {
+                    if (counter > 0) _tableName += ".";
+                    _tableName += string.Format("[{0}]", part);
+                    counter++;
+                }
+            }
+        }
         /// <summary>
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
         /// </summary>
@@ -281,8 +308,6 @@ namespace Massive {
             var args = new List<object>();
             var result = CreateCommand(stub, null);
 
-            string[] primaryKeyElem = PrimaryKeyField.Split(_keyColSeparator).Select(x => x.Trim()).ToArray<string>();
-
             int counter = 0;
 
             foreach (var item in settings)
@@ -290,13 +315,13 @@ namespace Massive {
                 var val = item.Value;
                 bool match =false;
 
-                foreach (string keyElem in primaryKeyElem)
+                foreach (string keyElem in _primaryKeySplitted)
                     if(item.Key.Equals(keyElem,StringComparison.CurrentCultureIgnoreCase) && item.Value !=null) match=true;
 
                 if (!match)
                 {
                     result.AddParam(val);
-                    sbKeys.AppendFormat("{0} = @{1}, \r\n", item.Key, counter.ToString());
+                    sbKeys.AppendFormat("[{0}] = @{1}, \r\n", item.Key, counter.ToString());
                     counter++;
                 }
             }
@@ -310,10 +335,10 @@ namespace Massive {
                 result.CommandText = string.Format(stub, TableName, keys);
 
                 string whereClause="";
-                for(int i=0; i< primaryKeyElem.Length ; i++)
+                for (int i = 0; i < _primaryKeySplitted.Length; i++)
                 {
                     if(i>0) whereClause += " AND ";
-                    whereClause = whereClause +  string.Format("{0} = @{1}\r\n",primaryKeyElem[i],counter + i);
+                    whereClause = whereClause + string.Format("[{0}] = @{1}\r\n", _primaryKeySplitted[i], counter + i);
                 }
                 result.CommandText += whereClause;
             }
@@ -325,13 +350,12 @@ namespace Massive {
         /// </summary>
         public virtual DbCommand CreateDeleteCommand(string where = "", bool byKey=false, params object[] args)
         {
-            var sql = string.Format("DELETE FROM {0} WHERE ", TableName);
+            var sql = string.Format("DELETE FROM {0} WHERE ",TableName);
             if (byKey) {
-                string[] primaryKeyElem = PrimaryKeyField.Split(_keyColSeparator).Select(x => x.Trim()).ToArray<string>();
-                for(int i=0; i<primaryKeyElem.Length;i++)
+                for (int i = 0; i < _primaryKeySplitted.Length; i++)
                 {
                     if(i>0) sql += " AND ";
-                    sql += string.Format("{0} = @{1}\r\n", primaryKeyElem[i], i);
+                    sql += string.Format("[{0}] = @{1}\r\n", _primaryKeySplitted[i], i);
                 }
             } 
             else if (!string.IsNullOrEmpty(where)) {
@@ -377,7 +401,7 @@ namespace Massive {
                 sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
             if (!String.IsNullOrEmpty(orderBy))
                 sql += orderBy.Trim().StartsWith("order by", StringComparison.CurrentCultureIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
-            return Query(string.Format(sql, columns, TableName), args);
+            return Query(string.Format(sql, columns,TableName), args);
         }
 
         /// <summary>
@@ -385,7 +409,7 @@ namespace Massive {
         /// </summary>
         public virtual dynamic Paged(string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage = 1, params object[] args) {
             dynamic result = new ExpandoObject();
-            var countSQL = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
+            var countSQL = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField,TableName);
             if (String.IsNullOrEmpty(orderBy))
                 orderBy = PrimaryKeyField;
 
@@ -394,7 +418,7 @@ namespace Massive {
                     where = "WHERE " + where;
                 }
             }
-            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3} {4}) AS Paged ", columns, pageSize, orderBy, TableName, where);
+            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3} {4}) AS Paged ", columns, pageSize, orderBy,TableName, where);
             var pageStart = (currentPage - 1) * pageSize;
             sql += string.Format(" WHERE Row > {0} AND Row <={1}", pageStart, (pageStart + pageSize));
             countSQL += where;
@@ -411,11 +435,10 @@ namespace Massive {
         public virtual dynamic Single(string columns ,params object[] key)
         {
             var sql = string.Format("SELECT {0} FROM {1} WHERE ", columns, TableName);
-            string[] primaryKeyElem = (PrimaryKeyField.Split(_keyColSeparator)).Select(x => x.Trim()).ToArray<string>();
-            for(int i=0; i<primaryKeyElem.Length;i++)
+            for (int i = 0; i < _primaryKeySplitted.Length; i++)
             {
                 if(i > 0) sql += " AND ";
-                sql = sql + string.Format("{0} = @{1}\r\n", primaryKeyElem[i], i);
+                sql = sql + string.Format("[{0}] = @{1}\r\n", _primaryKeySplitted[i], i);
             }
             var items = Query(sql, key).ToList();
             return items.FirstOrDefault();
