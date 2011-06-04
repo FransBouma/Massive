@@ -7,6 +7,7 @@ using System.Data.Common;
 using System.Dynamic;
 using System.Linq;
 using System.Text;
+using System.Transactions;
 
 namespace Massive {
     public static class ObjectExtensions {
@@ -95,7 +96,6 @@ namespace Massive {
     public class DynamicModel {
         DbProviderFactory _factory;
         string _connectionString;
-
         string _primaryKeyField;
         string[] _primaryKeySplitted;
         string _tableName;
@@ -196,18 +196,32 @@ namespace Massive {
             return Execute(new DbCommand[] { command });
         }
         /// <summary>
-        /// Executes a series of DBCommands in a transaction
+        /// Executes a series of DBCommands in a new connection transaction
+        /// Or use the ambient transaction if exists
         /// </summary>
         public virtual int Execute(IEnumerable<DbCommand> commands) {
             var result = 0;
             using (var conn = OpenConnection()) {
-                using (var tx = conn.BeginTransaction()) {
-                    foreach (var cmd in commands) {
+                if (Transaction.Current != null)
+                {
+                    foreach (var cmd in commands)
+                    {
                         cmd.Connection = conn;
-                        cmd.Transaction = tx;
                         result += cmd.ExecuteNonQuery();
                     }
-                    tx.Commit();
+                }
+                else
+                {
+                    using (var tx = conn.BeginTransaction())
+                    {
+                        foreach (var cmd in commands)
+                        {
+                            cmd.Connection = conn;
+                            cmd.Transaction = tx;
+                            result += cmd.ExecuteNonQuery();
+                        }
+                        tx.Commit();
+                    }
                 }
             }
             return result;
@@ -333,7 +347,10 @@ namespace Massive {
                 bool match =false;
 
                 foreach (string keyElem in _primaryKeySplitted)
-                    if(item.Key.Equals(keyElem,StringComparison.CurrentCultureIgnoreCase) && item.Value !=null) match=true;
+                {
+                    if (item.Key.Equals(keyElem, StringComparison.CurrentCultureIgnoreCase) && item.Value != null) match = true;
+                    break;
+                }
 
                 if (!match)
                 {
@@ -420,7 +437,6 @@ namespace Massive {
                 sql += orderBy.Trim().StartsWith("order by", StringComparison.CurrentCultureIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
             return Query(string.Format(sql, columns,TableName), args);
         }
-
         /// <summary>
         /// Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords.
         /// </summary>
@@ -460,7 +476,6 @@ namespace Massive {
             var items = Query(sql, key).ToList();
             return items.FirstOrDefault();
         }
-
         public virtual dynamic Single(params object[] key)
         {
             return Single("*" ,key);
