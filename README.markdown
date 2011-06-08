@@ -103,3 +103,29 @@ Yippee Skippy! Now we get to the fun part - and one of the reasons I had to spen
 	}
 	//Let's update these in bulk, in a transaction shall we?
 	table.Save(drinks);
+	
+ActiveRecord Syntax
+-------------------
+I recently added the ability to run ActiveRecord style, Rails-y queries using Massive. It relies on TryInvokeMember() and makes your queries very readable:
+
+	//important - must be dynamic
+	dynamic table = new Products();
+
+	var drinks = table.FindBy_CategoryID(8);
+	//what we get back here is an IEnumerable < ExpandoObject > - we can go to town
+	foreach(var item in drinks){
+		Console.WriteLine(item.ProductName);
+	}
+	
+Asynchronous Execution
+----------------------
+Thanks to Damien Edwards, we now have the ability to query asynchronously using the Task Parallel Library:
+	
+	var p = new Products();
+	p.AllAsync(result => {
+		foreach (var item in result) {
+			Console.WriteLine(item.ProductName);
+		}
+	});
+	
+This will toss the execution (and what you need to do with it) into an asynchronous call, which is nice for scaling.
