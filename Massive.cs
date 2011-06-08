@@ -1,5 +1,4 @@
 using System;
-using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Configuration;
@@ -90,22 +89,14 @@ namespace Massive {
     /// <summary>
     /// A class that wraps your database table in Dynamic Funtime
     /// </summary>
-    public class DynamicModel:DynamicObject {
+    public class DynamicModel : DynamicObject {
         DbProviderFactory _factory;
         string _connectionString;
 
-        public DynamicModel(string connectionStringName = "", string tableName = "", string primaryKeyField = "") {
+        public DynamicModel(string connectionStringName,string tableName = "", string primaryKeyField = "") {
             TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
-            if (connectionStringName == "")
-                connectionStringName = ConfigurationManager.ConnectionStrings[0].Name;
             var _providerName = "System.Data.SqlClient";
-            if (ConfigurationManager.ConnectionStrings[connectionStringName] != null) {
-                if (!string.IsNullOrEmpty(ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName))
-                    _providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
-            } else {
-                throw new InvalidOperationException("Can't find a connection string with the name '" + connectionStringName + "'");
-            }
             _factory = DbProviderFactories.GetFactory(_providerName);
             _connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
         }
@@ -127,20 +118,17 @@ namespace Massive {
             using (var conn = new SqlConnection(_connectionString)) {
                 var cmd = new SqlCommand(sql, new SqlConnection(_connectionString));
                 cmd.AddParams(args);
-                cmd.Connection.Open();                
+                cmd.Connection.Open();
                 var task = Task.Factory.FromAsync<IDataReader>(cmd.BeginExecuteReader, cmd.EndExecuteReader, null);
                 task.ContinueWith(x => callback.Invoke(x.Result.ToExpandoList()));
             }
         }
-
-
         public virtual IEnumerable<dynamic> Query(string sql, DbConnection connection, params object[] args) {
             using (var rdr = CreateCommand(sql, connection, args).ExecuteReader()) {
                 while (rdr.Read()) {
                     yield return rdr.RecordToExpando(); ;
                 }
             }
-
         }
         /// <summary>
         /// Returns a single result
@@ -186,7 +174,6 @@ namespace Massive {
                     commands.Add(CreateInsertCommand(item));
                 }
             }
-
             return commands;
         }
         /// <summary>
@@ -331,8 +318,6 @@ namespace Massive {
         public int Delete(object key = null, string where = "", params object[] args) {
             return Execute(CreateDeleteCommand(where: where, key: key, args: args));
         }
-        
-        
         /// <summary>
         /// Returns all records complying with the passed-in WHERE clause and arguments, 
         /// ordered as specified, limited (TOP) by limit.
@@ -341,7 +326,6 @@ namespace Massive {
             string sql = BuildSelect(where, orderBy, limit);
             return Query(string.Format(sql, columns, TableName), args);
         }
-
         private static string BuildSelect(string where, string orderBy, int limit) {
             string sql = limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1} " : "SELECT {0} FROM {1} ";
             if (!string.IsNullOrEmpty(where))
@@ -354,9 +338,9 @@ namespace Massive {
         /// Returns all records complying with the passed-in WHERE clause and arguments, 
         /// ordered as specified, limited (TOP) by limit.
         /// </summary>
-        public virtual void AllAsync(Action<List<dynamic>> callback,string where = "", string orderBy = "", int limit = 0, string columns = "*", params object[] args) {
+        public virtual void AllAsync(Action<List<dynamic>> callback, string where = "", string orderBy = "", int limit = 0, string columns = "*", params object[] args) {
             string sql = BuildSelect(where, orderBy, limit);
-            QueryAsync(string.Format(sql, columns, TableName),callback, args);
+            QueryAsync(string.Format(sql, columns, TableName), callback, args);
         }
         /// <summary>
         /// Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords.
@@ -391,7 +375,6 @@ namespace Massive {
             var items = Query(sql, key).ToList();
             return items.FirstOrDefault();
         }
-
         /// <summary>
         /// A little Rails-y love for ya
         /// </summary>
