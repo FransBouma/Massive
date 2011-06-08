@@ -1,4 +1,5 @@
 using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Configuration;
@@ -120,11 +121,11 @@ namespace Massive {
             }
         }
         /// <summary>
-        /// Enumerates the reader yielding the result - thanks to Jeroen Haegebaert
+        /// Executes the reader using SQL async API - thanks to Damian Edwards
         /// </summary>
         public void QueryAsync(string sql, Action<List<dynamic>> callback, params object[] args) {
-            using (var conn = OpenConnection()) {
-                var cmd = new SqlCommand(sql,new SqlConnection(_connectionString));
+            using (var conn = new SqlConnection(_connectionString)) {
+                var cmd = new SqlCommand(sql, new SqlConnection(_connectionString));
                 cmd.AddParams(args);
                 cmd.Connection.Open();                
                 var task = Task.Factory.FromAsync<IDataReader>(cmd.BeginExecuteReader, cmd.EndExecuteReader, null);
