@@ -223,6 +223,7 @@ namespace Massive {
             return result;
         }
         public virtual string TableName { get; set; }
+        public virtual string ColumnPrefix { get; set; }
         /// <summary>
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
         /// </summary>
@@ -388,7 +389,7 @@ namespace Massive {
             var counter = 0;
             for (int i = 1; i < stems.Length; i++) {
                 if (stems[i].Trim().ToLower() != "and") {
-                    sb.Add(stems[i] + "=@" + counter);
+                    sb.Add((!string.IsNullOrEmpty(ColumnPrefix) ? ColumnPrefix : "") + stems[i] + "=@" + counter);
                     counter++;
                 }
             }
