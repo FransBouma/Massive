@@ -175,12 +175,13 @@ namespace Massive {
         /// <summary>
         /// Builds a set of Insert and Update commands based on the passed-on objects.
         /// These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
-        /// With a PK property (whatever PrimaryKeyField is set to) will be created at UPDATEs
+        /// With a PK property (whatever PrimaryKeyField is set to) will be created as UPDATEs 
+        /// if forceInserts is set to false (needed for non-IDENTITY PK fields)
         /// </summary>
-        public virtual List<DbCommand> BuildCommands(params object[] things) {
+        public virtual List<DbCommand> BuildCommands(bool forceInserts, params object[] things) {
             var commands = new List<DbCommand>();
             foreach (var item in things) {
-                if (HasPrimaryKey(item)) {
+                if (!forceInserts &&  HasPrimaryKey(item)) {
                     commands.Add(CreateUpdateCommand(item, GetPrimaryKey(item)));
                 } else {
                     commands.Add(CreateInsertCommand(item));
@@ -188,6 +189,13 @@ namespace Massive {
             }
 
             return commands;
+        }
+        /// <summary>
+        /// Overload to support no specified behaviour for primary key overwrite, forcing it to 
+        /// false, thereby causing UPDATES where a PK is supplied
+        /// </summary>
+        public virtual List<DbCommand> BuildCommands(params object[] things) {
+            return BuildCommands(false, things);
         }
         /// <summary>
         /// Executes a set of objects as Insert or Update commands based on their property settings, within a transaction.
