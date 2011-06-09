@@ -94,20 +94,25 @@ namespace Massive {
         DbProviderFactory _factory;
         string _connectionString;
 
-        public DynamicModel(string connectionStringName = "", string tableName = "", string primaryKeyField = "") {
+        public DynamicModel(string connectionStringName = "", string tableName = "", string primaryKeyField = "", string providerName = "", string connectionString = "") {
             TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
-            if (connectionStringName == "")
+            if (connectionStringName == "" && (providerName=="" && connectionString==""))
                 connectionStringName = ConfigurationManager.ConnectionStrings[0].Name;
-            var _providerName = "System.Data.SqlClient";
             if (ConfigurationManager.ConnectionStrings[connectionStringName] != null) {
+                var _providerName = "System.Data.SqlClient";
                 if (!string.IsNullOrEmpty(ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName))
+                {
                     _providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
+                }
+                _factory = DbProviderFactories.GetFactory(_providerName);
+                _connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
+            } else if (providerName != "" && connectionString != "") {
+                _factory = DbProviderFactories.GetFactory(providerName);
+                _connectionString = connectionString;
             } else {
                 throw new InvalidOperationException("Can't find a connection string with the name '" + connectionStringName + "'");
             }
-            _factory = DbProviderFactories.GetFactory(_providerName);
-            _connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
         }
         /// <summary>
         /// Enumerates the reader yielding the result - thanks to Jeroen Haegebaert
