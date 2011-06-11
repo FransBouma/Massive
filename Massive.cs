@@ -13,8 +13,6 @@ namespace Massive {
         /// <summary>
         /// Extension method to convert dynamic data to a DataTable. Useful for databinding.
         /// </summary>
-        /// <param name="items"></param>
-        /// <returns></returns>
         public static DataTable ToDataTable(this IEnumerable<dynamic> items) {
             var data = items.ToArray();
             if (data.Count() == 0) return null;
