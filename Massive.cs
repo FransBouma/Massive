@@ -11,6 +11,24 @@ using System.Text;
 namespace Massive {
     public static class ObjectExtensions {
         /// <summary>
+        /// Extension method to convert dynamic data to a DataTable. Useful for databinding.
+        /// </summary>
+        /// <param name="items"></param>
+        /// <returns></returns>
+        public static DataTable ToDataTable(this IEnumerable<dynamic> items) {
+            var data = items.ToArray();
+            if (data.Count() == 0) return null;
+            
+            var dt = new DataTable();
+            foreach(var key in ((IDictionary<string, object>)data[0]).Keys) {
+                dt.Columns.Add(key);
+            }
+            foreach (var d in data) {
+                dt.Rows.Add(((IDictionary<string, object>)d).Values.ToArray());
+            }
+            return dt;
+        }
+        /// <summary>
         /// Extension method for adding in a bunch of parameters
         /// </summary>
         public static void AddParams(this DbCommand cmd, params object[] args) {
@@ -243,7 +261,7 @@ namespace Massive {
             var settings = (IDictionary<string, object>)expando;
             var sbKeys = new StringBuilder();
             var sbVals = new StringBuilder();
-            var stub = "INSERT INTO [{0}] ({1}) \r\n VALUES ({2})";
+            var stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2})";
             result = CreateCommand(stub, null);
             int counter = 0;
             foreach (var item in settings) {
@@ -267,7 +285,7 @@ namespace Massive {
             var expando = o.ToExpando();
             var settings = (IDictionary<string, object>)expando;
             var sbKeys = new StringBuilder();
-            var stub = "UPDATE [{0}] SET {1} WHERE {2} = @{3}";
+            var stub = "UPDATE {0} SET {1} WHERE {2} = @{3}";
             var args = new List<object>();
             var result = CreateCommand(stub, null);
             int counter = 0;
@@ -292,7 +310,7 @@ namespace Massive {
         /// Removes one or more records from the DB according to the passed-in WHERE
         /// </summary>
         public virtual DbCommand CreateDeleteCommand(string where = "", object key = null, params object[] args) {
-            var sql = string.Format("DELETE FROM [{0}] ", TableName);
+            var sql = string.Format("DELETE FROM {0} ", TableName);
             if (key != null) {
                 sql += string.Format("WHERE {0}=@0", PrimaryKeyField);
                 args = new object[] { key };
@@ -334,7 +352,7 @@ namespace Massive {
         /// ordered as specified, limited (TOP) by limit.
         /// </summary>
         public virtual IEnumerable<dynamic> All(string where = "", string orderBy = "", int limit = 0, string columns = "*", params object[] args) {
-            string sql = limit > 0 ? "SELECT TOP " + limit + " {0} FROM [{1}] " : "SELECT {0} FROM [{1}] ";
+            string sql = limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1} " : "SELECT {0} FROM {1} ";
             if (!string.IsNullOrEmpty(where))
                 sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
             if (!String.IsNullOrEmpty(orderBy))
@@ -347,7 +365,7 @@ namespace Massive {
         /// </summary>
         public virtual dynamic Paged(string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage = 1, params object[] args) {
             dynamic result = new ExpandoObject();
-            var countSQL = string.Format("SELECT COUNT({0}) FROM [{1}]", PrimaryKeyField, TableName);
+            var countSQL = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
             if (String.IsNullOrEmpty(orderBy))
                 orderBy = PrimaryKeyField;
 
@@ -356,7 +374,7 @@ namespace Massive {
                     where = "WHERE " + where;
                 }
             }
-            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM [{3}] {4}) AS Paged ", columns, pageSize, orderBy, TableName, where);
+            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3} {4}) AS Paged ", columns, pageSize, orderBy, TableName, where);
             var pageStart = (currentPage - 1) * pageSize;
             sql += string.Format(" WHERE Row > {0} AND Row <={1}", pageStart, (pageStart + pageSize));
             countSQL += where;
@@ -371,7 +389,7 @@ namespace Massive {
         /// Returns a single row from the database
         /// </summary>
         public virtual dynamic Single(object key, string columns = "*") {
-            var sql = string.Format("SELECT {0} FROM [{1}] WHERE {2} = @0", columns, TableName, PrimaryKeyField);
+            var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", columns, TableName, PrimaryKeyField);
             var items = Query(sql, key).ToList();
             return items.FirstOrDefault();
         }
