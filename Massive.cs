@@ -7,6 +7,8 @@ using System.Data.Common;
 using System.Dynamic;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
+using System.Data.SqlClient;
 
 namespace Massive {
     public static class ObjectExtensions {
@@ -103,16 +105,11 @@ namespace Massive {
     /// <summary>
     /// A class that wraps your database table in Dynamic Funtime
     /// </summary>
-    public class DynamicModel {
-        public DynamicModel(string connectionStringName = null, string tableName = null, string primaryKeyField = "ID")
-        {
+    public class DynamicModel : DynamicObject {
+        public DynamicModel(string connectionStringName = null, string tableName = null, string primaryKeyField = "ID") {
             ProviderName = "System.Data.SqlClient";
             TableName = tableName ?? GetType().Name;
             PrimaryKeyField = primaryKeyField;
-
-            if (connectionStringName == null && ConfigurationManager.ConnectionStrings.Count > 0)
-                connectionStringName = ConfigurationManager.ConnectionStrings[0].Name;
-
             if (connectionStringName != null) {
                 if (ConfigurationManager.ConnectionStrings[connectionStringName] != null) {
                     ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
@@ -149,6 +146,18 @@ namespace Massive {
                 while (rdr.Read()) {
                     yield return rdr.RecordToExpando(); ;
                 }
+            }
+        }
+        /// <summary>
+        /// Executes the reader using SQL async API - thanks to Damian Edwards
+        /// </summary>
+        public void QueryAsync(string sql, Action<List<dynamic>> callback, params object[] args) {
+            using (var conn = (SqlConnection)OpenConnection()) {
+                var cmd = new SqlCommand(sql, conn);
+                cmd.AddParams(args);
+                cmd.Connection.Open();
+                var task = Task.Factory.FromAsync<IDataReader>(cmd.BeginExecuteReader, cmd.EndExecuteReader, null);
+                task.ContinueWith(x => callback.Invoke(x.Result.ToExpandoList()));
             }
         }
         public virtual IEnumerable<dynamic> Query(string sql, DbConnection connection, params object[] args) {
@@ -202,7 +211,6 @@ namespace Massive {
                     commands.Add(CreateInsertCommand(item));
                 }
             }
-
             return commands;
         }
         /// <summary>
@@ -284,14 +292,13 @@ namespace Massive {
             var settings = (IDictionary<string, object>)expando;
             var sbKeys = new StringBuilder();
             var stub = "UPDATE {0} SET {1} WHERE {2} = @{3}";
-            var args = new List<object>();
             var result = CreateCommand(stub, null);
             int counter = 0;
             foreach (var item in settings) {
                 var val = item.Value;
                 if (!item.Key.Equals(PrimaryKeyField, StringComparison.CurrentCultureIgnoreCase) && item.Value != null) {
                     result.AddParam(val);
-                    sbKeys.AppendFormat("{0} = @{1}, \r\n", item.Key, counter.ToString());
+                    sbKeys.AppendFormat("{0} = @{1}, \r\n", item.Key, counter);
                     counter++;
                 }
             }
@@ -350,14 +357,25 @@ namespace Massive {
         /// ordered as specified, limited (TOP) by limit.
         /// </summary>
         public virtual IEnumerable<dynamic> All(string where = "", string orderBy = "", int limit = 0, string columns = "*", params object[] args) {
+            string sql = BuildSelect(where, orderBy, limit);
+            return Query(string.Format(sql, columns, TableName), args);
+        }
+        private static string BuildSelect(string where, string orderBy, int limit) {
             string sql = limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1} " : "SELECT {0} FROM {1} ";
             if (!string.IsNullOrEmpty(where))
                 sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
             if (!String.IsNullOrEmpty(orderBy))
                 sql += orderBy.Trim().StartsWith("order by", StringComparison.CurrentCultureIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
-            return Query(string.Format(sql, columns, TableName), args);
+            return sql;
         }
-
+        /// <summary>
+        /// Returns all records complying with the passed-in WHERE clause and arguments, 
+        /// ordered as specified, limited (TOP) by limit.
+        /// </summary>
+        public virtual void AllAsync(Action<List<dynamic>> callback, string where = "", string orderBy = "", int limit = 0, string columns = "*", params object[] args) {
+            string sql = BuildSelect(where, orderBy, limit);
+            QueryAsync(string.Format(sql, columns, TableName), callback, args);
+        }
         /// <summary>
         /// Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords.
         /// </summary>
@@ -393,6 +411,27 @@ namespace Massive {
         }
         protected DbProviderFactory GetDbProviderFactory() {
             return DbProviderFactories.GetFactory(ProviderName);
+        }
+        /// <summary>
+        /// A little Rails-y love for ya
+        /// </summary>
+        public override bool TryInvokeMember(InvokeMemberBinder binder, object[] args, out object result) {
+            //parse the method
+            var stems = binder.Name.Split('_');
+            var sb = new List<string>();
+
+            //first should be "FindBy or whatever"
+            var op = stems[0];
+            var counter = 0;
+            for (int i = 1; i < stems.Length; i++) {
+                if (stems[i].Trim().ToLower() != "and") {
+                    sb.Add(stems[i] + "=@" + counter);
+                    counter++;
+                }
+            }
+            var sql = "SELECT * FROM " + TableName + " WHERE " + string.Join(" AND ", sb.ToArray());
+            result = Query(sql, args);
+            return true;
         }
     }
 }
