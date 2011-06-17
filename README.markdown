@@ -104,18 +104,34 @@ Yippee Skippy! Now we get to the fun part - and one of the reasons I had to spen
 	//Let's update these in bulk, in a transaction shall we?
 	table.Save(drinks);
 	
-ActiveRecord Syntax
+Named Argument Query Syntax
 -------------------
-I recently added the ability to run ActiveRecord style, Rails-y queries using Massive. It relies on TryInvokeMember() and makes your queries very readable:
+I recently added the ability to run more friendly queries using Named Arguments and C#4's Method-on-the-fly syntax. Originally this was trying to be like ActiveRecord, but I figured "C# is NOT Ruby, and Named Arguments can be a lot more clear". In addition, Mark Rendle's Simple.Data is already doing this so ... why duplicate things?
+
+If your needs are more complicated - I would suggest just passing in your own SQL with Query().
 
 	//important - must be dynamic
 	dynamic table = new Products();
 
-	var drinks = table.FindBy_CategoryID(8);
+	var drinks = table.FindBy(CategoryID:8);
 	//what we get back here is an IEnumerable < ExpandoObject > - we can go to town
 	foreach(var item in drinks){
 		Console.WriteLine(item.ProductName);
 	}
+	//returns the first item in the DB for category 8
+	var first = table.First(CategoryID:8);
+	
+	//you dig it - the last as sorted by PK
+	var last = table.Last(CategoryID:8);
+	
+	//you can order by whatever you like
+	var firstButReallyLast = table.First(CategoryID:8,OrderBy:"PK DESC");
+	
+	//only want one column?
+	var price = table.First(CategoryID:8,Columns:"UnitPrice").UnitPrice;
+	
+	//Multiple Criteria?
+	var items = table.Find(CategoryID:5, UnitPrice:100, OrderBy:"UnitPrice DESC");
 	
 Asynchronous Execution
 ----------------------

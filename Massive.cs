@@ -393,24 +393,71 @@ namespace Massive {
             return Query(sql, key).FirstOrDefault();
         }
         /// <summary>
-        /// A little Rails-y love for ya
+        /// A helpful query tool
         /// </summary>
         public override bool TryInvokeMember(InvokeMemberBinder binder, object[] args, out object result) {
             //parse the method
-            var stems = binder.Name.Split('_');
-            var sb = new List<string>();
-
-            //first should be "FindBy or whatever"
-            var op = stems[0];
+            var constraints = new List<string>();
             var counter = 0;
-            for (int i = 1; i < stems.Length; i++) {
-                if (stems[i].Trim().ToLower() != "and") {
-                    sb.Add(stems[i] + "=@" + counter);
-                    counter++;
+            var info = binder.CallInfo;
+            // accepting named args only... SKEET!
+            if(info.ArgumentNames.Count != args.Length){
+                throw new InvalidOperationException("Please use named arguments for this type of query - the column name, orderby, columns, etc");
+            }
+
+
+            //first should be "FindBy, Last, Single, First"
+            var op = binder.Name;
+            var columns = " * ";
+            string orderBy = string.Format(" ORDER BY {0}", PrimaryKeyField);
+            string where = "";
+            var whereArgs = new List<object>();
+
+            //loop the named args - see if we have order, columns and constraints
+            if (info.ArgumentNames.Count > 0) {
+                
+                for (int i = 0; i < args.Length; i++) {
+                    var name = info.ArgumentNames[i].ToLower();
+                    switch (name) {
+                        case "orderby":
+                            orderBy = " ORDER BY " + args[i];
+                            break;
+                        case "columns":
+                            columns = args[i].ToString();
+                            break;
+                        default:
+                            constraints.Add(string.Format(" {0} = @{1}",name,counter));
+                            whereArgs.Add(args[i]);
+                            counter++;
+                            break;
+                    }
                 }
             }
-            var sql = "SELECT * FROM " + TableName + " WHERE " + string.Join(" AND ", sb.ToArray());
-            result = Query(sql, args);
+            //Build the WHERE bits
+            if (constraints.Count > 0) {
+                where = " WHERE " + string.Join(" AND ", constraints.ToArray());
+            }
+            //build the SQL
+            string sql = "SELECT TOP 1 "+columns+" FROM " + TableName + where;
+            var justOne = true;
+
+            //Be sure to sort by DESC on the PK (PK Sort is the default)
+            if (op.StartsWith("Last")) {
+                orderBy = orderBy + " DESC ";
+            } else {
+                //default to multiple
+                sql = "SELECT "+columns+" FROM " + TableName + where;
+                justOne = false;
+            }
+
+            if (justOne) {
+                //return a single record
+                result = Query(sql + orderBy, whereArgs.ToArray()).FirstOrDefault();
+            } else {
+                //return lots
+                result = Query(sql + orderBy, whereArgs.ToArray());
+            }
+
             return true;
         }
     }
