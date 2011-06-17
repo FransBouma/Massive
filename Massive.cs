@@ -93,7 +93,7 @@ namespace Massive {
         DbProviderFactory _factory;
         string _connectionString;
 
-        public DynamicModel(string connectionStringName,string tableName = "", string primaryKeyField = "") {
+        public DynamicModel(string connectionStringName, string tableName = "", string primaryKeyField = "") {
             TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
             var _providerName = "System.Data.SqlClient";
@@ -364,7 +364,7 @@ namespace Massive {
 
             if (!string.IsNullOrEmpty(where)) {
                 if (!where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase)) {
-                    where = "WHERE " + where;
+                    where = " WHERE " + where;
                 }
             }
             var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3} {4}) AS Paged ", columns, pageSize, orderBy, TableName, where);
@@ -401,7 +401,7 @@ namespace Massive {
             var counter = 0;
             var info = binder.CallInfo;
             // accepting named args only... SKEET!
-            if(info.ArgumentNames.Count != args.Length){
+            if (info.ArgumentNames.Count != args.Length) {
                 throw new InvalidOperationException("Please use named arguments for this type of query - the column name, orderby, columns, etc");
             }
 
@@ -415,7 +415,7 @@ namespace Massive {
 
             //loop the named args - see if we have order, columns and constraints
             if (info.ArgumentNames.Count > 0) {
-                
+
                 for (int i = 0; i < args.Length; i++) {
                     var name = info.ArgumentNames[i].ToLower();
                     switch (name) {
@@ -426,7 +426,7 @@ namespace Massive {
                             columns = args[i].ToString();
                             break;
                         default:
-                            constraints.Add(string.Format(" {0} = @{1}",name,counter));
+                            constraints.Add(string.Format(" {0} = @{1}", name, counter));
                             whereArgs.Add(args[i]);
                             counter++;
                             break;
@@ -438,7 +438,7 @@ namespace Massive {
                 where = " WHERE " + string.Join(" AND ", constraints.ToArray());
             }
             //build the SQL
-            string sql = "SELECT TOP 1 "+columns+" FROM " + TableName + where;
+            string sql = "SELECT TOP 1 " + columns + " FROM " + TableName + where;
             var justOne = op.StartsWith("First") || op.StartsWith("Last") || op.StartsWith("Get");
 
             //Be sure to sort by DESC on the PK (PK Sort is the default)
@@ -446,7 +446,7 @@ namespace Massive {
                 orderBy = orderBy + " DESC ";
             } else {
                 //default to multiple
-                sql = "SELECT "+columns+" FROM " + TableName + where;
+                sql = "SELECT " + columns + " FROM " + TableName + where;
                 justOne = false;
             }
 
