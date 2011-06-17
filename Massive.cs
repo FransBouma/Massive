@@ -439,7 +439,7 @@ namespace Massive {
             }
             //build the SQL
             string sql = "SELECT TOP 1 "+columns+" FROM " + TableName + where;
-            var justOne = true;
+            var justOne = op.StartsWith("First") || op.StartsWith("Last") || op.StartsWith("Get");
 
             //Be sure to sort by DESC on the PK (PK Sort is the default)
             if (op.StartsWith("Last")) {
