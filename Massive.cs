@@ -101,6 +101,15 @@ namespace Massive {
             _connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
         }
         /// <summary>
+        /// List out all the schema bits for use with ... whatever
+        /// </summary>
+        public IEnumerable<dynamic> Schema {
+            get {
+                return Query("SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @0", TableName);
+            }
+        }
+
+        /// <summary>
         /// Enumerates the reader yielding the result - thanks to Jeroen Haegebaert
         /// </summary>
         public virtual IEnumerable<dynamic> Query(string sql, params object[] args) {
@@ -123,6 +132,7 @@ namespace Massive {
                 task.ContinueWith(x => callback.Invoke(x.Result.ToExpandoList()));
             }
         }
+
         public virtual IEnumerable<dynamic> Query(string sql, DbConnection connection, params object[] args) {
             using (var rdr = CreateCommand(sql, connection, args).ExecuteReader()) {
                 while (rdr.Read()) {
@@ -185,6 +195,7 @@ namespace Massive {
             var commands = BuildCommands(things);
             return Execute(commands);
         }
+
         public virtual int Execute(DbCommand command) {
             return Execute(new DbCommand[] { command });
         }
@@ -370,10 +381,16 @@ namespace Massive {
         /// <summary>
         /// Returns a single row from the database
         /// </summary>
+        public virtual dynamic Single(string where, params object[] args) {
+            var sql = string.Format("SELECT * FROM {0} WHERE {1}", TableName, where);
+            return Query(sql, args).First();
+        }
+        /// <summary>
+        /// Returns a single row from the database
+        /// </summary>
         public virtual dynamic Single(object key, string columns = "*") {
             var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", columns, TableName, PrimaryKeyField);
-            var items = Query(sql, key).ToList();
-            return items.FirstOrDefault();
+            return Query(sql, key).FirstOrDefault();
         }
         /// <summary>
         /// A little Rails-y love for ya
