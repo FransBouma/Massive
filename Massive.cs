@@ -96,9 +96,12 @@ namespace Massive {
         public DynamicModel(string connectionStringName, string tableName = "", string primaryKeyField = "") {
             TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
-            var _providerName = "System.Data.SqlClient";
-            _factory = DbProviderFactories.GetFactory(_providerName);
             _connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
+            var _providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
+            if(String.IsNullOrEmpty(_providerName))
+                _providerName = "System.Data.SqlClient";
+            _factory = DbProviderFactories.GetFactory(_providerName);
+           
         }
         /// <summary>
         /// List out all the schema bits for use with ... whatever
