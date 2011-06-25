@@ -91,17 +91,17 @@ namespace Massive {
     /// </summary>
     public class DynamicModel : DynamicObject {
         DbProviderFactory _factory;
-        string _connectionString;
-
+        string ConnectionString;
+        public static DynamicModel Open(string connectionStringName) {
+            dynamic dm = new DynamicModel(connectionStringName);
+            return dm;
+        }
         public DynamicModel(string connectionStringName, string tableName = "", string primaryKeyField = "") {
             TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
-            _connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
-            var _providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
-            if(String.IsNullOrEmpty(_providerName))
-                _providerName = "System.Data.SqlClient";
+            var _providerName = "System.Data.SqlClient";
             _factory = DbProviderFactories.GetFactory(_providerName);
-           
+            ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
         }
         /// <summary>
         /// List out all the schema bits for use with ... whatever
@@ -127,8 +127,8 @@ namespace Massive {
         /// Executes the reader using SQL async API - thanks to Damian Edwards
         /// </summary>
         public void QueryAsync(string sql, Action<List<dynamic>> callback, params object[] args) {
-            using (var conn = new SqlConnection(_connectionString)) {
-                var cmd = new SqlCommand(sql, new SqlConnection(_connectionString));
+            using (var conn = new SqlConnection(ConnectionString)) {
+                var cmd = new SqlCommand(sql, new SqlConnection(ConnectionString));
                 cmd.AddParams(args);
                 cmd.Connection.Open();
                 var task = Task.Factory.FromAsync<IDataReader>(cmd.BeginExecuteReader, cmd.EndExecuteReader, null);
@@ -169,7 +169,7 @@ namespace Massive {
         /// </summary>
         public virtual DbConnection OpenConnection() {
             var result = _factory.CreateConnection();
-            result.ConnectionString = _connectionString;
+            result.ConnectionString = ConnectionString;
             result.Open();
             return result;
         }
@@ -201,6 +201,10 @@ namespace Massive {
 
         public virtual int Execute(DbCommand command) {
             return Execute(new DbCommand[] { command });
+        }
+
+        public virtual int Execute(string sql, params object[] args) {
+            return Execute(CreateCommand(sql, null, args));
         }
         /// <summary>
         /// Executes a series of DBCommands in a transaction
@@ -367,7 +371,7 @@ namespace Massive {
 
             if (!string.IsNullOrEmpty(where)) {
                 if (!where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase)) {
-                    where = " WHERE " + where;
+                    where = "WHERE " + where;
                 }
             }
             var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3} {4}) AS Paged ", columns, pageSize, orderBy, TableName, where);
@@ -450,7 +454,6 @@ namespace Massive {
             } else {
                 //default to multiple
                 sql = "SELECT " + columns + " FROM " + TableName + where;
-                justOne = false;
             }
 
             if (justOne) {
