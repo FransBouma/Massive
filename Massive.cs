@@ -128,11 +128,13 @@ namespace Massive {
         /// </summary>
         public void QueryAsync(string sql, Action<List<dynamic>> callback, params object[] args) {
             using (var conn = new SqlConnection(ConnectionString)) {
-                var cmd = new SqlCommand(sql, new SqlConnection(ConnectionString));
+                var cmd = new SqlCommand(sql, conn);
                 cmd.AddParams(args);
-                cmd.Connection.Open();
+                conn.Open();
                 var task = Task.Factory.FromAsync<IDataReader>(cmd.BeginExecuteReader, cmd.EndExecuteReader, null);
                 task.ContinueWith(x => callback.Invoke(x.Result.ToExpandoList()));
+                //make sure this is closed off.
+                conn.Close();
             }
         }
 
@@ -390,7 +392,7 @@ namespace Massive {
         /// </summary>
         public virtual dynamic Single(string where, params object[] args) {
             var sql = string.Format("SELECT * FROM {0} WHERE {1}", TableName, where);
-            return Query(sql, args).First();
+            return Query(sql, args).FirstOrDefault();
         }
         /// <summary>
         /// Returns a single row from the database
