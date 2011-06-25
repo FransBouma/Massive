@@ -133,6 +133,19 @@ If your needs are more complicated - I would suggest just passing in your own SQ
 	//Multiple Criteria?
 	var items = table.Find(CategoryID:5, UnitPrice:100, OrderBy:"UnitPrice DESC");
 	
+Metadata
+--------
+If you find that you need to know information about your table - to generate some lovely things like ... whatever - just ask for the Schema property. This will query INFORMATION_SCHEMA for you, and you can take a look at DATA_TYPE, DEFAULT_VALUE, etc for whatever system you're running on.
+
+In addition, if you want to generate an empty instance of a column - you can now ask for a "Prototype()" - which will return all the columns in your table with the defaults set for you (getdate(), raw values, newid(), etc).
+
+Factory Constructor
+-------------------
+One thing that can be useful is to use Massive to just run a quick query. You can do that now by using "Open()" which is a static builder on DynamicModel:
+	var db = Massive.DynamicModel.Open("myConnectionStringName");
+
+You can execute whatever you like at that point.
+
 Asynchronous Execution
 ----------------------
 Thanks to Damien Edwards, we now have the ability to query asynchronously using the Task Parallel Library:
