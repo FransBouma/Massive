@@ -100,6 +100,10 @@ namespace Massive {
             TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
             var _providerName = "System.Data.SqlClient";
+            if(!string.IsNullOrEmpty(ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName))
+            {
+               _providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
+            }
             _factory = DbProviderFactories.GetFactory(_providerName);
             ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
         }
