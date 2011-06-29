@@ -373,7 +373,7 @@ namespace Massive {
 
             if (!string.IsNullOrEmpty(where)) {
                 if (!where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase)) {
-                    where = "WHERE " + where;
+                    where = " WHERE " + where;
                 }
             }
             var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3} {4}) AS Paged ", columns, pageSize, orderBy, TableName, where);
