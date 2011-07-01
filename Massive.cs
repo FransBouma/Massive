@@ -103,12 +103,71 @@ namespace Massive {
             _factory = DbProviderFactories.GetFactory(_providerName);
             ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
         }
+
+        /// <summary>
+        /// Creates a new Expando from a Form POST - white listed against the columns in the DB
+        /// </summary>
+        public dynamic CreateFrom(NameValueCollection coll) {
+            dynamic result = new ExpandoObject();
+            var dc = (IDictionary<string, object>)result;
+            var schema = Schema;
+            //loop the collection, setting only what's in the Schema
+            foreach (var item in coll.Keys) {
+                var exists = schema.Any(x => x.COLUMN_NAME.ToLower() == item.ToString().ToLower());
+                if (exists) {
+                    var key = item.ToString();
+                    var val = coll[key];
+                    if (!String.IsNullOrEmpty(val)) {
+                        //what to do here? If it's empty... set it to NULL?
+                        //if it's a string value - let it go through if it's NULLABLE?
+                        //Empty? WTF?
+                        dc.Add(key, val);
+                    }
+                }
+            }
+            return result;
+        }
+        /// <summary>
+        /// Gets a default value for the column
+        /// </summary>
+        public dynamic DefaultValue(dynamic column) {
+            dynamic result = null;
+            string def = column.COLUMN_DEFAULT;
+            if (String.IsNullOrEmpty(def)) {
+                result = null;
+            } else if (def == "getdate()" || def == "(getdate())") {
+                result = DateTime.Now.ToShortDateString();
+            } else if (def == "newid()") {
+                result = Guid.NewGuid().ToString();
+            } else {
+                result = def.Replace("(", "").Replace(")", "");
+            }
+            return result;
+        }
+        /// <summary>
+        /// Creates an empty Expando set with defaults from the DB
+        /// </summary>
+        public dynamic Prototype {
+            get {
+                dynamic result = new ExpandoObject();
+                var schema = Schema;
+                foreach (dynamic column in schema) {
+                    var dc = (IDictionary<string, object>)result;
+                    dc.Add(column.COLUMN_NAME, DefaultValue(column));
+                }
+                result._Table = this;
+                return result;
+            }
+        }
         /// <summary>
         /// List out all the schema bits for use with ... whatever
         /// </summary>
+        IEnumerable<dynamic> _schema;
         public IEnumerable<dynamic> Schema {
             get {
-                return Query("SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @0", TableName);
+                if(_schema == null)
+                    _schema= Query("SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @0", TableName);
+                return _schema;
             }
         }
 
