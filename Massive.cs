@@ -315,7 +315,7 @@ namespace Massive {
             result = CreateCommand(stub, null);
             int counter = 0;
             foreach (var item in settings) {
-                sbKeys.AppendFormat("{0},", item.Key);
+                sbKeys.AppendFormat("[{0}],", item.Key);
                 sbVals.AppendFormat("@{0},", counter.ToString());
                 result.AddParam(item.Value);
                 counter++;
