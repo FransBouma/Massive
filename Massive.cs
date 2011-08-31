@@ -341,7 +341,7 @@ namespace Massive {
             int counter = 0;
             foreach (var item in settings) {
                 var val = item.Value;
-                if (!item.Key.Equals(PrimaryKeyField, StringComparison.CurrentCultureIgnoreCase) && item.Value != null) {
+                if (!item.Key.Equals(PrimaryKeyField, StringComparison.OrdinalIgnoreCase) && item.Value != null) {
                     result.AddParam(val);
                     sbKeys.AppendFormat("{0} = @{1}, \r\n", item.Key, counter.ToString());
                     counter++;
@@ -365,7 +365,7 @@ namespace Massive {
                 sql += string.Format("WHERE {0}=@0", PrimaryKeyField);
                 args = new object[] { key };
             } else if (!string.IsNullOrEmpty(where)) {
-                sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
+                sql += where.Trim().StartsWith("where", StringComparison.OrdinalIgnoreCase) ? where : "WHERE " + where;
             }
             return CreateCommand(sql, null, args);
         }
@@ -408,9 +408,9 @@ namespace Massive {
         private static string BuildSelect(string where, string orderBy, int limit) {
             string sql = limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1} " : "SELECT {0} FROM {1} ";
             if (!string.IsNullOrEmpty(where))
-                sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
+                sql += where.Trim().StartsWith("where", StringComparison.OrdinalIgnoreCase) ? where : "WHERE " + where;
             if (!String.IsNullOrEmpty(orderBy))
-                sql += orderBy.Trim().StartsWith("order by", StringComparison.CurrentCultureIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
+                sql += orderBy.Trim().StartsWith("order by", StringComparison.OrdinalIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
             return sql;
         }
         /// <summary>
@@ -431,7 +431,7 @@ namespace Massive {
                 orderBy = PrimaryKeyField;
 
             if (!string.IsNullOrEmpty(where)) {
-                if (!where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase)) {
+                if (!where.Trim().StartsWith("where", StringComparison.OrdinalIgnoreCase)) {
                     where = "WHERE " + where;
                 }
             }
