@@ -113,7 +113,7 @@ namespace Massive {
             var schema = Schema;
             //loop the collection, setting only what's in the Schema
             foreach (var item in coll.Keys) {
-                var exists = schema.Any(x => x.COLUMN_NAME.ToLower() == item.ToString().ToLower());
+                var exists = schema.Any(x => string.Equals(x.COLUMN_NAME, item.ToString(), StringComparison.OrdinalIgnoreCase));
                 if (exists) {
                     var key = item.ToString();
                     var val = coll[key];
@@ -485,19 +485,17 @@ namespace Massive {
             if (info.ArgumentNames.Count > 0) {
 
                 for (int i = 0; i < args.Length; i++) {
-                    var name = info.ArgumentNames[i].ToLower();
-                    switch (name) {
-                        case "orderby":
-                            orderBy = " ORDER BY " + args[i];
-                            break;
-                        case "columns":
-                            columns = args[i].ToString();
-                            break;
-                        default:
-                            constraints.Add(string.Format(" {0} = @{1}", name, counter));
-                            whereArgs.Add(args[i]);
-                            counter++;
-                            break;
+                    var name = info.ArgumentNames[i];
+                    if (name.Equals("orderby", StringComparison.OrdinalIgnoreCase)) {
+                        orderBy = " ORDER BY " + args[i];
+                    }
+                    else if (name.Equals("columns", StringComparison.OrdinalIgnoreCase)) {
+                        columns = args[i].ToString();
+                    }
+                    else {
+                        constraints.Add(string.Format(" {0} = @{1}", name, counter));
+                        whereArgs.Add(args[i]);
+                        counter++;
                     }
                 }
             }
