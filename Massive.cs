@@ -28,18 +28,22 @@ namespace Massive {
             p.ParameterName = string.Format("@{0}", cmd.Parameters.Count);
             if (item == null) {
                 p.Value = DBNull.Value;
-            } else {
-                if (item.GetType() == typeof(Guid)) {
+            }
+            else {
+                Type type = item.GetType();
+                if (type == typeof(Guid) || type.IsEnum) {
                     p.Value = item.ToString();
                     p.DbType = DbType.String;
                     p.Size = 4000;
-                } else if (item.GetType() == typeof(ExpandoObject)) {
+                }
+                else if (type == typeof(ExpandoObject)) {
                     var d = (IDictionary<string, object>)item;
                     p.Value = d.Values.FirstOrDefault();
-                } else {
+                }
+                else {
                     p.Value = item;
                 }
-                if (item.GetType() == typeof(string))
+                if (type == typeof(string))
                     p.Size = ((string)item).Length > 4000 ? -1 : 4000;
             }
             cmd.Parameters.Add(p);
@@ -71,7 +75,8 @@ namespace Massive {
             if (o.GetType() == typeof(NameValueCollection) || o.GetType().IsSubclassOf(typeof(NameValueCollection))) {
                 var nv = (NameValueCollection)o;
                 nv.Cast<string>().Select(key => new KeyValuePair<string, object>(key, nv[key])).ToList().ForEach(i => d.Add(i));
-            } else {
+            }
+            else {
                 var props = o.GetType().GetProperties();
                 foreach (var item in props) {
                     d.Add(item.Name, item.GetValue(o, null));
@@ -135,11 +140,14 @@ namespace Massive {
             string def = column.COLUMN_DEFAULT;
             if (String.IsNullOrEmpty(def)) {
                 result = null;
-            } else if (def == "getdate()" || def == "(getdate())") {
+            }
+            else if (def == "getdate()" || def == "(getdate())") {
                 result = DateTime.Now.ToShortDateString();
-            } else if (def == "newid()") {
+            }
+            else if (def == "newid()") {
                 result = Guid.NewGuid().ToString();
-            } else {
+            }
+            else {
                 result = def.Replace("(", "").Replace(")", "");
             }
             return result;
@@ -165,8 +173,8 @@ namespace Massive {
         IEnumerable<dynamic> _schema;
         public IEnumerable<dynamic> Schema {
             get {
-                if(_schema == null)
-                    _schema= Query("SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @0", TableName);
+                if (_schema == null)
+                    _schema = Query("SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @0", TableName);
                 return _schema;
             }
         }
@@ -241,10 +249,13 @@ namespace Massive {
         /// </summary>
         public virtual List<DbCommand> BuildCommands(params object[] things) {
             var commands = new List<DbCommand>();
-            foreach (var item in things) {
+            var items = (things.Length != 1) ? things : things[0] as System.Collections.IEnumerable;
+            if (items == null) items = things;
+            foreach (var item in items) {
                 if (HasPrimaryKey(item)) {
                     commands.Add(CreateUpdateCommand(item, GetPrimaryKey(item)));
-                } else {
+                }
+                else {
                     commands.Add(CreateInsertCommand(item));
                 }
             }
@@ -290,7 +301,17 @@ namespace Massive {
         /// looks like a PK. If you've named your PrimaryKeyField, this becomes easy
         /// </summary>
         public virtual bool HasPrimaryKey(object o) {
-            return o.ToDictionary().ContainsKey(PrimaryKeyField);
+            bool result = o.ToDictionary().ContainsKey(PrimaryKeyField);
+            if (result) {
+                object pk = o.ToDictionary()[PrimaryKeyField];
+
+                Type pkType = pk.GetType();
+                if (pkType.IsPrimitive) {
+                    object pkDef = Activator.CreateInstance(pkType);
+                    return !pk.Equals(pkDef);
+                }
+            }
+            return result;
         }
         /// <summary>
         /// If the object passed in has a property with the same name as your PrimaryKeyField
@@ -315,17 +336,20 @@ namespace Massive {
             result = CreateCommand(stub, null);
             int counter = 0;
             foreach (var item in settings) {
-                sbKeys.AppendFormat("{0},", item.Key);
-                sbVals.AppendFormat("@{0},", counter.ToString());
-                result.AddParam(item.Value);
-                counter++;
+                if (String.Compare(item.Key, PrimaryKeyField, true) != 0) {
+                    sbKeys.AppendFormat("{0},", item.Key);
+                    sbVals.AppendFormat("@{0},", counter.ToString());
+                    result.AddParam(item.Value);
+                    counter++;
+                }
             }
             if (counter > 0) {
                 var keys = sbKeys.ToString().Substring(0, sbKeys.Length - 1);
                 var vals = sbVals.ToString().Substring(0, sbVals.Length - 1);
                 var sql = string.Format(stub, TableName, keys, vals);
                 result.CommandText = sql;
-            } else throw new InvalidOperationException("Can't parse this object to the database - there are no properties set");
+            }
+            else throw new InvalidOperationException("Can't parse this object to the database - there are no properties set");
             return result;
         }
         /// <summary>
@@ -353,7 +377,8 @@ namespace Massive {
                 //strip the last commas
                 var keys = sbKeys.ToString().Substring(0, sbKeys.Length - 4);
                 result.CommandText = string.Format(stub, TableName, keys, PrimaryKeyField, counter);
-            } else throw new InvalidOperationException("No parsable object was sent in - could not divine any name/value pairs");
+            }
+            else throw new InvalidOperationException("No parsable object was sent in - could not divine any name/value pairs");
             return result;
         }
         /// <summary>
@@ -364,7 +389,8 @@ namespace Massive {
             if (key != null) {
                 sql += string.Format("WHERE {0}=@0", PrimaryKeyField);
                 args = new object[] { key };
-            } else if (!string.IsNullOrEmpty(where)) {
+            }
+            else if (!string.IsNullOrEmpty(where)) {
                 sql += where.Trim().StartsWith("where", StringComparison.OrdinalIgnoreCase) ? where : "WHERE " + where;
             }
             return CreateCommand(sql, null, args);
@@ -403,7 +429,7 @@ namespace Massive {
         /// </summary>
         public virtual IEnumerable<dynamic> All(string where = "", string orderBy = "", int limit = 0, string columns = "*", params object[] args) {
             string sql = BuildSelect(where, orderBy, limit);
-            return Query(string.Format(sql, columns, TableName), args);
+            return Query(string.Format(sql, columns, TableName), args).ToList();
         }
         private static string BuildSelect(string where, string orderBy, int limit) {
             string sql = limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1} " : "SELECT {0} FROM {1} ";
@@ -507,12 +533,13 @@ namespace Massive {
             }
             //build the SQL
             string sql = "SELECT TOP 1 " + columns + " FROM " + TableName + where;
-            var justOne = op.StartsWith("First") || op.StartsWith("Last") || op.StartsWith("Get");
+            var justOne = op.StartsWith("First") || op.StartsWith("Last") || op.StartsWith("Get") || op.StartsWith("Single") || op.Equals("Find", StringComparison.InvariantCultureIgnoreCase) || op.Equals("FindBy", StringComparison.InvariantCultureIgnoreCase);
 
             //Be sure to sort by DESC on the PK (PK Sort is the default)
             if (op.StartsWith("Last")) {
                 orderBy = orderBy + " DESC ";
-            } else {
+            }
+            else {
                 //default to multiple
                 sql = "SELECT " + columns + " FROM " + TableName + where;
             }
@@ -520,11 +547,11 @@ namespace Massive {
             if (justOne) {
                 //return a single record
                 result = Query(sql + orderBy, whereArgs.ToArray()).FirstOrDefault();
-            } else {
+            }
+            else {
                 //return lots
                 result = Query(sql + orderBy, whereArgs.ToArray());
             }
-
             return true;
         }
     }
