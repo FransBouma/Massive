@@ -133,6 +133,16 @@ If your needs are more complicated - I would suggest just passing in your own SQ
 	//Multiple Criteria?
 	var items = table.Find(CategoryID:5, UnitPrice:100, OrderBy:"UnitPrice DESC");
 	
+Aggregates with Named Arguments
+-------------------------------
+You can do the same thing as above for aggregates:
+
+	var sum = table.Sum(columns:Price, CategoryID:5);
+	var avg = table.Sum(columns:Price, CategoryID:3);
+	var min = table.Min(columns:ID);
+	var max = table.Max(columns:CreatedOn);
+	var count = table.Count();
+	
 Metadata
 --------
 If you find that you need to know information about your table - to generate some lovely things like ... whatever - just ask for the Schema property. This will query INFORMATION_SCHEMA for you, and you can take a look at DATA_TYPE, DEFAULT_VALUE, etc for whatever system you're running on.
@@ -146,15 +156,42 @@ One thing that can be useful is to use Massive to just run a quick query. You ca
 
 You can execute whatever you like at that point.
 
-Asynchronous Execution
-----------------------
-Thanks to Damien Edwards, we now have the ability to query asynchronously using the Task Parallel Library:
-	
-	var p = new Products();
-	p.AllAsync(result => {
-		foreach (var item in result) {
-			Console.WriteLine(item.ProductName);
-		}
-	});
-	
-This will toss the execution (and what you need to do with it) into an asynchronous call, which is nice for scaling.
+Validations
+-----------
+One thing that's always needed when working with data is the ability to stop execution if something isn't right. Massive now has Validations, which are built with the Rails approach in mind:
+
+    public class Productions:DynamicModel {
+        public Productions():base("MyConnectionString","Productions","ID") {}
+        public override void Validate(dynamic item) {
+			ValidatesPresenceOf("Title");
+            ValidatesNumericalityOf("Price");
+            ValidateIsCurrency("Price");
+			if (item.Price <= 0)
+                Errors.Add("Price can't be negative");
+        }
+	}
+
+The idea here is that Validate() is called prior to Insert/Update. If it fails, an Error collection is populated and an InvalidOperationException is thrown. That simple. With each of the validations above, a message can be passed in.
+
+CallBacks
+---------
+Need something to happen After Update/Insert/Delete? Need to halt BeforeSave? Massive has callbacks to let you do just that:
+
+    public class Customers:DynamicModel {
+        public Customers():base("MyConnectionString","Customers","ID") {}
+        
+		//Add the person to Highrise CRM when they're added to the system...
+		public override void Inserted(dynamic item) {
+            //send them to Highrise
+            var svc = new HighRiseApi();
+            svc.AddPerson(...);
+        }
+	}
+The callbacks you can use are:
+*Inserted
+*Updated
+*Deleted
+*BeforeDelete
+*BeforeSave
+
+
