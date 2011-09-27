@@ -88,6 +88,21 @@ namespace Massive {
             return (IDictionary<string, object>)thingy.ToExpando();
         }
     }
+
+    /// <summary>
+    /// Convenience class for opening/executing data
+    /// </summary>
+    public static class DB {
+        public static DynamicModel Current {
+            get {
+                if (ConfigurationManager.ConnectionStrings.Count > 1) {
+                    return new DynamicModel(ConfigurationManager.ConnectionStrings[1].Name);
+                }
+                throw new InvalidOperationException("Need a connection string name - can't determine what it is");
+            }
+        }
+    }
+    
     /// <summary>
     /// A class that wraps your database table in Dynamic Funtime
     /// </summary>
@@ -457,8 +472,8 @@ namespace Massive {
                 throw new InvalidOperationException("Can't insert: " + String.Join("; ", Errors.ToArray()));
             }
             if (BeforeSave(ex)) {
-                using (var conn = OpenConnection()) {
-                    var cmd = CreateInsertCommand((ExpandoObject)ex);
+                using (dynamic conn = OpenConnection()) {
+                    var cmd = CreateInsertCommand(ex);
                     cmd.Connection = conn;
                     cmd.ExecuteNonQuery();
                     cmd.CommandText = "SELECT @@IDENTITY as newID";
@@ -481,7 +496,7 @@ namespace Massive {
             }
             var result = 0;
             if (BeforeSave(ex)) {
-                result = Execute(CreateUpdateCommand((ExpandoObject)ex, key));
+                result = Execute(CreateUpdateCommand(ex, key));
                 Updated(ex);
             }
             return result;
@@ -497,6 +512,13 @@ namespace Massive {
                 Deleted(deleted);
             }
             return result;
+        }
+
+        public void DefaultTo(string key, object value, dynamic item) {
+            if (!ItemContainsKey(key, item)) {
+                var dc = (IDictionary<string, object>)item;
+                dc[key] = value;
+            }
         }
 
         //Hooks
@@ -531,6 +553,12 @@ namespace Massive {
                 Errors.Add(message);
 
 
+        }
+        public int Count() {
+            return Count(TableName);
+        }
+        public int Count(string tableName, string where="") {
+            return (int)Scalar("SELECT COUNT(*) FROM " + tableName);
         }
 
         /// <summary>
