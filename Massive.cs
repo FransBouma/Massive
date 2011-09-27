@@ -376,9 +376,8 @@ namespace Massive {
             var commands = BuildCommands(things);
             return Execute(commands);
         }
-        public virtual DbCommand CreateInsertCommand(object o) {
+        public virtual DbCommand CreateInsertCommand(dynamic expando) {
             DbCommand result = null;
-            var expando = o.ToExpando();
             var settings = (IDictionary<string, object>)expando;
             var sbKeys = new StringBuilder();
             var sbVals = new StringBuilder();
@@ -402,8 +401,7 @@ namespace Massive {
         /// <summary>
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
         /// </summary>
-        public virtual DbCommand CreateUpdateCommand(object o, object key) {
-            var expando = o.ToExpando();
+        public virtual DbCommand CreateUpdateCommand(dynamic expando, object key) {
             var settings = (IDictionary<string, object>)expando;
             var sbKeys = new StringBuilder();
             var stub = "UPDATE {0} SET {1} WHERE {2} = @{3}";
@@ -454,21 +452,20 @@ namespace Massive {
         /// A regular old POCO, or a NameValueColletion from a Request.Form or Request.QueryString
         /// </summary>
         public virtual dynamic Insert(object o) {
-            if (!IsValid(o.ToExpando())) {
+            var ex = o.ToExpando();
+            if (!IsValid(ex)) {
                 throw new InvalidOperationException("Can't insert: " + String.Join("; ", Errors.ToArray()));
             }
-            if (BeforeSave(o.ToExpando())) {
-                dynamic newRecord = new ExpandoObject();
+            if (BeforeSave(ex)) {
                 using (var conn = OpenConnection()) {
-                    var cmd = CreateInsertCommand(o);
+                    var cmd = CreateInsertCommand((ExpandoObject)ex);
                     cmd.Connection = conn;
                     cmd.ExecuteNonQuery();
                     cmd.CommandText = "SELECT @@IDENTITY as newID";
-                    newRecord = o.ToExpando();
-                    newRecord.ID = cmd.ExecuteScalar();
-                    Inserted(newRecord);
+                    ex.ID = cmd.ExecuteScalar();
+                    Inserted(ex);
                 }
-                return newRecord;
+                return ex;
             } else {
                 return null;
             }
@@ -478,13 +475,14 @@ namespace Massive {
         /// A regular old POCO, or a NameValueCollection from a Request.Form or Request.QueryString
         /// </summary>
         public virtual int Update(object o, object key) {
-            if (!IsValid(o.ToExpando())) {
+            var ex = o.ToExpando();
+            if (!IsValid(ex)) {
                 throw new InvalidOperationException("Can't Update: " + String.Join("; ", Errors.ToArray()));
             }
             var result = 0;
-            if (BeforeSave(o.ToExpando())) {
-                result = Execute(CreateUpdateCommand(o, key));
-                Updated(o);
+            if (BeforeSave(ex)) {
+                result = Execute(CreateUpdateCommand((ExpandoObject)ex, key));
+                Updated(ex);
             }
             return result;
         }
