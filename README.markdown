@@ -29,6 +29,7 @@ Let's say we have a table named "Products". You create a class like this:
     }
 
 You could also just instantiate it inline, as needed:
+
 	var tbl = new DynamicModel("northwind", tableName:"Products", primaryKeyField:"ProductID");
 
 Or ignore the object hierarchy altogether:
@@ -172,8 +173,8 @@ One thing that's always needed when working with data is the ability to stop exe
         public Productions():base("MyConnectionString","Productions","ID") {}
         public override void Validate(dynamic item) {
 			ValidatesPresenceOf("Title");
-            ValidatesNumericalityOf("Price");
-            ValidateIsCurrency("Price");
+            ValidatesNumericalityOf(item.Price);
+            ValidateIsCurrency(item.Price);
 			if (item.Price <= 0)
                 Errors.Add("Price can't be negative");
         }
