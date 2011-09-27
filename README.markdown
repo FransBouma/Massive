@@ -24,15 +24,16 @@ Let's say we have a table named "Products". You create a class like this:
     
 	public class Products:DynamicModel {
         	//you don't have to specify the connection - Massive will use the first one it finds in your config
-		public Products():base("northwind") {
-            		PrimaryKeyField = "ProductID";
-        	}
+		public Products():base("northwind", "products","productid") {}
 
-    	}
+    }
 
 You could also just instantiate it inline, as needed:
 	var tbl = new DynamicModel("northwind", tableName:"Products", primaryKeyField:"ProductID");
 
+Or ignore the object hierarchy altogether:
+	
+	Massive.DB.Current.Query(...);
 
 Now you can query thus:
 
@@ -42,6 +43,13 @@ Now you can query thus:
 	//just grab from category 4. This uses named parameters
 	var productsFour = table.All(columns: "ProductName as Name", where: "WHERE categoryID=@0",args: 4);
 
+That works, but Massive is "dynamic" - which means that it can figure a lot of things out on the fly. That query above can be rewritten like this:
+
+	dynamic table = new Products(); //"dynamic" is important here - don't use "var"!
+	var productsFour = table.Find(CategoryID:4,columns:"ProductName");
+	
+The "Find" method doesn't exist, but since Massive is dynamic it will try to infer what you mean by using DynamicObject's TryInvokeMember. See the source for more details. There's more on the dynamic query stuff down below.
+	
 You can also run ad-hoc queries as needed:
 
 	var result = tbl.Query("SELECT * FROM Categories");
