@@ -558,7 +558,7 @@ namespace Massive {
             return Count(TableName);
         }
         public int Count(string tableName, string where="") {
-            return (int)Scalar("SELECT COUNT(*) FROM " + tableName);
+            return (int)Scalar("SELECT COUNT(*) FROM " + tableName+" "+where);
         }
 
         /// <summary>
