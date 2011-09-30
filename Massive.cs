@@ -396,8 +396,8 @@ namespace Massive {
             var settings = (IDictionary<string, object>)expando;
             var sbKeys = new StringBuilder();
             var sbVals = new StringBuilder();
-            var stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2})";
-            result = CreateCommand(stub, null);
+			var stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2})\r\nSET @newID = SCOPE_IDENTITY()";
+			result = CreateCommand(stub, null);
             int counter = 0;
             foreach (var item in settings) {
                 sbKeys.AppendFormat("{0},", item.Key);
@@ -405,6 +405,12 @@ namespace Massive {
                 result.AddParam(item.Value);
                 counter++;
             }
+			var pId = result.CreateParameter();
+			pId.ParameterName = "@newID";
+			pId.DbType = DbType.Int64;
+			pId.Direction = ParameterDirection.InputOutput;
+			pId.Value = DBNull.Value;
+			result.Parameters.Add(pId);
             if (counter > 0) {
                 var keys = sbKeys.ToString().Substring(0, sbKeys.Length - 1);
                 var vals = sbVals.ToString().Substring(0, sbVals.Length - 1);
@@ -476,8 +482,7 @@ namespace Massive {
                     var cmd = CreateInsertCommand(ex);
                     cmd.Connection = conn;
                     cmd.ExecuteNonQuery();
-                    cmd.CommandText = "SELECT @@IDENTITY as newID";
-                    ex.ID = cmd.ExecuteScalar();
+					ex.ID = cmd.Parameters["@newID"].Value;
                     Inserted(ex);
                 }
                 return ex;
