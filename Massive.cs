@@ -208,6 +208,29 @@ namespace Massive {
                 }
             }
         }
+		/// <summary>
+        /// Executes the reader using SQL async API - thanks to Damian Edwards
+        /// </summary>
+        public void QueryAsync(string sql, Action<List<dynamic>> callback, params object[] args) {
+            var conn = new SqlConnection(ConnectionString);
+            using(var cmd = new SqlCommand(sql, conn)){
+				cmd.AddParams(args);
+				try{
+					conn.Open();
+					var task = Task.Factory.FromAsync<IDataReader>(cmd.BeginExecuteReader, cmd.EndExecuteReader, null);
+					task.ContinueWith(x => {
+						var result = x.Result.ToExpandoList();
+						conn.Dispose();
+						callback.Invoke(result);
+					});
+				}
+				catch (DbException){
+					if (conn.State == ConnectionState.Open)
+						conn.Close();
+					throw;
+				}
+			}
+        }
         /// <summary>
         /// Returns a single result
         /// </summary>
