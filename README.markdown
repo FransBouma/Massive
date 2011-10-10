@@ -1,3 +1,5 @@
+This is a fork of the original massive removing the dependency on System.Configuration so it can be used in more dynamic environments like LinqPad, IronJS, IronRuby, IronPython or DynamicPad
+
 Massive is a Single File Database Lover. Move over Bacon - Taste is got a new friend in .NET Land
 =================================================================================================
 
