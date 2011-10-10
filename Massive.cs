@@ -112,6 +112,31 @@ public class DynamicModel : DynamicObject {
 			}
 		}
 	}
+	public virtual IEnumerable<dynamic>  Query(string tableName, ExpandoObject obj)
+	{
+		TableName = tableName;
+		string sql = BuildSelectFromExpandoObject(obj);
+		return Query(sql);
+	}
+
+	private string BuildSelectFromExpandoObject(IEnumerable<KeyValuePair<string, object>> expandoObject)
+	{
+		var sql = "select * from " + TableName + " where ";
+		bool firstRound = true;
+		foreach (var val in expandoObject)
+		{
+			if(val.Key == "_Table")
+				continue;
+			if (val.Value == null || string.IsNullOrWhiteSpace(val.Value.ToString()))
+				continue;
+			if (!firstRound)
+				sql += " and ";
+			sql += val.Key + "='" + val.Value + "'";
+			firstRound = false;
+		}
+		return sql;
+	}
+	
 	public virtual IEnumerable<dynamic> Query(string sql, DbConnection connection, params object[] args) {
 		using (var rdr = CreateCommand(sql, connection, args).ExecuteReader()) {
 			while (rdr.Read()) {
