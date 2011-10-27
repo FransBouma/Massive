@@ -172,7 +172,7 @@ namespace Massive {
                 return result;
             }
         }
-        private string _descriptorField;
+        private string _descriptorField = null;
         public string DescriptorField {
             get {
                 return _descriptorField;
