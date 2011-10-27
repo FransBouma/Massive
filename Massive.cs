@@ -185,7 +185,7 @@ namespace Massive {
         public IEnumerable<dynamic> Schema {
             get {
                 if (_schema == null)
-                    _schema = Query("SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @0", TableName);
+                    _schema = Query("SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = [@0]", TableName);
                 return _schema;
             }
         }
@@ -307,7 +307,7 @@ namespace Massive {
             return Query(string.Format(sql, columns, TableName), args);
         }
         private static string BuildSelect(string where, string orderBy, int limit) {
-            string sql = limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1} " : "SELECT {0} FROM {1} ";
+            string sql = limit > 0 ? "SELECT TOP " + limit + " {0} FROM [{1}] " : "SELECT {0} FROM [{1}] ";
             if (!string.IsNullOrEmpty(where))
                 sql += where.Trim().StartsWith("where", StringComparison.OrdinalIgnoreCase) ? where : "WHERE " + where;
             if (!String.IsNullOrEmpty(orderBy))
@@ -320,7 +320,7 @@ namespace Massive {
         /// </summary>
         public virtual dynamic Paged(string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage = 1, params object[] args) {
             dynamic result = new ExpandoObject();
-            var countSQL = string.Format("SELECT COUNT({0}) FROM {1} ", PrimaryKeyField, TableName);
+            var countSQL = string.Format("SELECT COUNT({0}) FROM [{1}] ", PrimaryKeyField, TableName);
             if (String.IsNullOrEmpty(orderBy))
                 orderBy = PrimaryKeyField;
 
@@ -329,7 +329,7 @@ namespace Massive {
                     where = "WHERE " + where;
                 }
             }
-            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3} {4}) AS Paged ", columns, pageSize, orderBy, TableName, where);
+            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM [{3}] {4}) AS Paged ", columns, pageSize, orderBy, TableName, where);
             var pageStart = (currentPage - 1) * pageSize;
             sql += string.Format(" WHERE Row > {0} AND Row <={1}", pageStart, (pageStart + pageSize));
             countSQL += where;
@@ -344,14 +344,14 @@ namespace Massive {
         /// Returns a single row from the database
         /// </summary>
         public virtual dynamic Single(string where, params object[] args) {
-            var sql = string.Format("SELECT * FROM {0} WHERE {1}", TableName, where);
+            var sql = string.Format("SELECT * FROM [{0}] WHERE {1}", TableName, where);
             return Query(sql, args).FirstOrDefault();
         }
         /// <summary>
         /// Returns a single row from the database
         /// </summary>
         public virtual dynamic Single(object key, string columns = "*") {
-            var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", columns, TableName, PrimaryKeyField);
+            var sql = string.Format("SELECT {0} FROM [{1}] WHERE {2} = @0", columns, TableName, PrimaryKeyField);
             return Query(sql, key).FirstOrDefault();
         }
         /// <summary>
@@ -360,7 +360,7 @@ namespace Massive {
         public virtual IDictionary<string, object> KeyValues(string orderBy = "") {
             if (String.IsNullOrEmpty(DescriptorField))
                 throw new InvalidOperationException("There's no DescriptorField set - do this in your constructor to describe the text value you want to see");
-            var sql = string.Format("SELECT {0},{1} FROM {2} ", PrimaryKeyField, DescriptorField, TableName);
+            var sql = string.Format("SELECT {0},{1} FROM [{2}] ", PrimaryKeyField, DescriptorField, TableName);
             if (!String.IsNullOrEmpty(orderBy))
                 sql += "ORDER BY " + orderBy;
             return (IDictionary<string, object>)Query(sql);
@@ -396,7 +396,7 @@ namespace Massive {
             var settings = (IDictionary<string, object>)expando;
             var sbKeys = new StringBuilder();
             var sbVals = new StringBuilder();
-            var stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2})";
+            var stub = "INSERT INTO [{0}] ({1}) \r\n VALUES ({2})";
             result = CreateCommand(stub, null);
             int counter = 0;
             foreach (var item in settings) {
@@ -444,7 +444,7 @@ namespace Massive {
         /// Removes one or more records from the DB according to the passed-in WHERE
         /// </summary>
         public virtual DbCommand CreateDeleteCommand(string where = "", object key = null, params object[] args) {
-            var sql = string.Format("DELETE FROM {0} ", TableName);
+            var sql = string.Format("DELETE FROM [{0}] ", TableName);
             if (key != null) {
                 sql += string.Format("WHERE {0}=@0", PrimaryKeyField);
                 args = new object[] { key };
@@ -558,7 +558,7 @@ namespace Massive {
             return Count(TableName);
         }
         public int Count(string tableName, string where="") {
-            return (int)Scalar("SELECT COUNT(*) FROM " + tableName+" "+where);
+            return (int)Scalar("SELECT COUNT(*) FROM [" + tableName+"] "+where);
         }
 
         /// <summary>
@@ -608,19 +608,19 @@ namespace Massive {
             }
             //probably a bit much here but... yeah this whole thing needs to be refactored...
             if (op.ToLower() == "count") {
-                result = Scalar("SELECT COUNT(*) FROM " + TableName + where, whereArgs.ToArray());
+                result = Scalar("SELECT COUNT(*) FROM [" + TableName + "]" + where, whereArgs.ToArray());
             } else if (op.ToLower() == "sum") {
-                result = Scalar("SELECT SUM(" + columns + ") FROM " + TableName + where, whereArgs.ToArray());
+                result = Scalar("SELECT SUM(" + columns + ") FROM [" + TableName + "] " + where, whereArgs.ToArray());
             } else if (op.ToLower() == "max") {
-                result = Scalar("SELECT MAX(" + columns + ") FROM " + TableName + where, whereArgs.ToArray());
+                result = Scalar("SELECT MAX(" + columns + ") FROM [" + TableName + "] " + where, whereArgs.ToArray());
             } else if (op.ToLower() == "min") {
-                result = Scalar("SELECT MIN(" + columns + ") FROM " + TableName + where, whereArgs.ToArray());
+                result = Scalar("SELECT MIN(" + columns + ") FROM [" + TableName + "] " + where, whereArgs.ToArray());
             } else if (op.ToLower() == "avg") {
-                result = Scalar("SELECT AVG(" + columns + ") FROM " + TableName + where, whereArgs.ToArray());
+                result = Scalar("SELECT AVG(" + columns + ") FROM [" + TableName + "] " + where, whereArgs.ToArray());
             } else {
 
                 //build the SQL
-                sql = "SELECT TOP 1 " + columns + " FROM " + TableName + where;
+                sql = "SELECT TOP 1 " + columns + " FROM [" + TableName + "] " + where;
                 var justOne = op.StartsWith("First") || op.StartsWith("Last") || op.StartsWith("Get") || op.StartsWith("Single");
 
                 //Be sure to sort by DESC on the PK (PK Sort is the default)
@@ -628,7 +628,7 @@ namespace Massive {
                     orderBy = orderBy + " DESC ";
                 } else {
                     //default to multiple
-                    sql = "SELECT " + columns + " FROM " + TableName + where;
+                    sql = "SELECT " + columns + " FROM [" + TableName + "] " + where;
                 }
 
                 if (justOne) {
