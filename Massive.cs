@@ -117,6 +117,7 @@ namespace Massive {
             string primaryKeyField = "", string descriptorField = "") {
             TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
+            DescriptorField = descriptorField;
             var _providerName = "System.Data.SqlClient";
             _factory = DbProviderFactories.GetFactory(_providerName);
             ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
@@ -172,12 +173,7 @@ namespace Massive {
                 return result;
             }
         }
-        private string _descriptorField = null;
-        public string DescriptorField {
-            get {
-                return _descriptorField;
-            }
-        }
+        public string DescriptorField { get; protected set; }
         /// <summary>
         /// List out all the schema bits for use with ... whatever
         /// </summary>
@@ -363,7 +359,9 @@ namespace Massive {
             var sql = string.Format("SELECT {0},{1} FROM {2} ", PrimaryKeyField, DescriptorField, TableName);
             if (!String.IsNullOrEmpty(orderBy))
                 sql += "ORDER BY " + orderBy;
-            return (IDictionary<string, object>)Query(sql);
+
+            var results = Query(sql).ToList().Cast<IDictionary<string, object>>();
+            return results.ToDictionary(key => key[PrimaryKeyField].ToString(), value => value[DescriptorField]);
         }
 
         /// <summary>
