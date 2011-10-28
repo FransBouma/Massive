@@ -365,7 +365,7 @@ namespace Massive {
             if (!String.IsNullOrEmpty(orderBy))
                 sql += "ORDER BY " + orderBy;
 
-            var results = Query(sql).ToList().Cast<IDictionary<string, object>>()
+            var results = Query(sql).ToList().Cast<IDictionary<string, object>>();
             return results.ToDictionary(key => key[PrimaryKeyField].ToString(), value => value[DescriptorField]);
         }
 
