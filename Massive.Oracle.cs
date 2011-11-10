@@ -118,7 +118,7 @@ namespace Massive {
             string primaryKeyField = "", string descriptorField = "", string sequence = "") {
             TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
-
+            DescriptorField = descriptorField;
             _sequence = sequence == "" ? ConfigurationManager.AppSettings["default_seq"] : sequence;
             _factory = DbProviderFactories.GetFactory("System.Data.OracleClient");
             if (ConfigurationManager.ConnectionStrings[connectionStringName] == null)
@@ -177,12 +177,7 @@ namespace Massive {
                 return result;
             }
         }
-        private string _descriptorField;
-        public string DescriptorField {
-            get {
-                return _descriptorField;
-            }
-        }
+        public string DescriptorField { get; protected set; }
         /// <summary>
         /// List out all the schema bits for use with ... whatever
         /// </summary>
@@ -369,7 +364,9 @@ namespace Massive {
             var sql = string.Format("SELECT {0},{1} FROM {2} ", PrimaryKeyField, DescriptorField, TableName);
             if (!String.IsNullOrEmpty(orderBy))
                 sql += "ORDER BY " + orderBy;
-            return (IDictionary<string, object>)Query(sql);
+
+            var results = Query(sql).ToList().Cast<IDictionary<string, object>>();
+            return results.ToDictionary(key => key[PrimaryKeyField].ToString(), value => value[DescriptorField]);
         }
 
         /// <summary>
