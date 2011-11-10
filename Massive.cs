@@ -75,8 +75,9 @@ namespace Massive {
             } else {
                 var props = o.GetType().GetProperties();
                 foreach (var item in props) {
-                    if(!exclusions.Contains(item.Name))
+                    if(!exclusions.Contains(item.Name)) {
                         d.Add(item.Name, item.GetValue(o, null));
+                    }
                 }
             }
             return result;
