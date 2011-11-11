@@ -243,9 +243,9 @@ namespace Massive {
             var commands = new List<DbCommand>();
             foreach (var item in things) {
                 if (HasPrimaryKey(item)) {
-                    commands.Add(CreateUpdateCommand(item, GetPrimaryKey(item)));
+                    commands.Add(CreateUpdateCommand(item.ToExpando(), GetPrimaryKey(item)));
                 } else {
-                    commands.Add(CreateInsertCommand(item));
+                    commands.Add(CreateInsertCommand(item.ToExpando()));
                 }
             }
             return commands;
