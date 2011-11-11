@@ -65,17 +65,18 @@ namespace Massive {
         /// <summary>
         /// Turns the object into an ExpandoObject
         /// </summary>
-        public static dynamic ToExpando(this object o) {
+        public static dynamic ToExpando(this object o, params string[] exclusions) {
             var result = new ExpandoObject();
             var d = result as IDictionary<string, object>; //work with the Expando as a Dictionary
             if (o.GetType() == typeof(ExpandoObject)) return o; //shouldn't have to... but just in case
             if (o.GetType() == typeof(NameValueCollection) || o.GetType().IsSubclassOf(typeof(NameValueCollection))) {
                 var nv = (NameValueCollection)o;
-                nv.Cast<string>().Select(key => new KeyValuePair<string, object>(key, nv[key])).ToList().ForEach(i => d.Add(i));
+                nv.Cast<string>().Where(k => !exclusions.Contains(k)).Select(key => new KeyValuePair<string, object>(key, nv[key])).ToList().ForEach(i => d.Add(i));
             } else {
                 var props = o.GetType().GetProperties();
                 foreach (var item in props) {
-                    d.Add(item.Name, item.GetValue(o, null));
+                    if(!exclusions.Contains(item.Name))
+                        d.Add(item.Name, item.GetValue(o, null));
                 }
             }
             return result;
@@ -491,7 +492,7 @@ namespace Massive {
         /// A regular old POCO, or a NameValueColletion from a Request.Form or Request.QueryString
         /// </summary>
         public virtual dynamic Insert(object o) {
-            var ex = o.ToExpando();
+            var ex = o.ToExpando(PrimaryKeyField);
             if (!IsValid(ex)) {
                 throw new InvalidOperationException("Can't insert: " + String.Join("; ", Errors.ToArray()));
             }
