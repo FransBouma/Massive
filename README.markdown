@@ -1,5 +1,5 @@
-Massive is a Single File Database Lover. Move over Bacon - Taste is got a new friend in .NET Land
-=================================================================================================
+Massive is a Single File Database Lover. It's Better Than Chocolate. No Really.
+===============================================================================
 
 
 I'm sharing this with the world because we need another way to access data - don't you think? Truthfully - I wanted to see if I could flex the C# 4 stuff and
