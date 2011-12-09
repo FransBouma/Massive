@@ -7,8 +7,6 @@ using System.Data.Common;
 using System.Dynamic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using System.Data.SqlClient;
 
 namespace Massive.PostgreSQL {
     public static class ObjectExtensions {
@@ -182,20 +180,7 @@ namespace Massive.PostgreSQL {
                 }
             }
         }
-        /// <summary>
-        /// Executes the reader using SQL async API - thanks to Damian Edwards
-        /// </summary>
-        public void QueryAsync(string sql, Action<List<dynamic>> callback, params object[] args) {
-            using (var conn = new SqlConnection(ConnectionString)) {
-                var cmd = new SqlCommand(sql, conn);
-                cmd.AddParams(args);
-                conn.Open();
-                var task = Task.Factory.FromAsync<IDataReader>(cmd.BeginExecuteReader, cmd.EndExecuteReader, null);
-                task.ContinueWith(x => callback.Invoke(x.Result.ToExpandoList()));
-                //make sure this is closed off.
-                conn.Close();
-            }
-        }
+
 
         public virtual IEnumerable<dynamic> Query(string sql, DbConnection connection, params object[] args) {
             using (var rdr = CreateCommand(sql, connection, args).ExecuteReader()) {
@@ -336,7 +321,7 @@ namespace Massive.PostgreSQL {
             var settings = (IDictionary<string, object>)expando;
             var sbKeys = new StringBuilder();
             var stub = "UPDATE {0} SET {1} WHERE {2} = @{3}";
-            var args = new List<object>();
+
             var result = CreateCommand(stub, null);
             int counter = 0;
             foreach (var item in settings) {
@@ -376,7 +361,7 @@ namespace Massive.PostgreSQL {
         public virtual object Insert(object o) {
             dynamic result = 0;
             using (var conn = OpenConnection()) {
-                var cmd = CreateInsertCommand(o);				 
+                var cmd = CreateInsertCommand(o);    			 
                 cmd.Connection = conn;
                 result = cmd.ExecuteScalar();
             }
@@ -404,46 +389,17 @@ namespace Massive.PostgreSQL {
             return Query(string.Format(sql, columns, TableName), args);
         }
         private static string BuildSelect(string where, string orderBy, int limit) {
-            string sql = limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1} " : "SELECT {0} FROM {1} ";
-            if (!string.IsNullOrEmpty(where))
-                sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
-            if (!String.IsNullOrEmpty(orderBy))
-                sql += orderBy.Trim().StartsWith("order by", StringComparison.CurrentCultureIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
+            string sql = "SELECT {0} FROM {1} ";
+			if (!string.IsNullOrEmpty(where))
+				sql += where.Trim().StartsWith("where", StringComparison.OrdinalIgnoreCase) ? where : "WHERE " + where;
+			if (!String.IsNullOrEmpty(orderBy))
+				sql += orderBy.Trim().StartsWith("order by", StringComparison.OrdinalIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
+			if (limit > 0)
+				sql += " LIMIT " + limit; 
+			
             return sql;
         }
-        /// <summary>
-        /// Returns all records complying with the passed-in WHERE clause and arguments, 
-        /// ordered as specified, limited (TOP) by limit.
-        /// </summary>
-        public virtual void AllAsync(Action<List<dynamic>> callback, string where = "", string orderBy = "", int limit = 0, string columns = "*", params object[] args) {
-            string sql = BuildSelect(where, orderBy, limit);
-            QueryAsync(string.Format(sql, columns, TableName), callback, args);
-        }
-        /// <summary>
-        /// Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords.
-        /// </summary>
-        public virtual dynamic Paged(string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage = 1, params object[] args) {
-            dynamic result = new ExpandoObject();
-            var countSQL = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
-            if (String.IsNullOrEmpty(orderBy))
-                orderBy = PrimaryKeyField;
 
-            if (!string.IsNullOrEmpty(where)) {
-                if (!where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase)) {
-                    where = "WHERE " + where;
-                }
-            }
-            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3} {4}) AS Paged ", columns, pageSize, orderBy, TableName, where);
-            var pageStart = (currentPage - 1) * pageSize;
-            sql += string.Format(" WHERE Row > {0} AND Row <={1}", pageStart, (pageStart + pageSize));
-            countSQL += where;
-            result.TotalRecords = Scalar(countSQL, args);
-            result.TotalPages = result.TotalRecords / pageSize;
-            if (result.TotalRecords % pageSize > 0)
-                result.TotalPages += 1;
-            result.Items = Query(string.Format(sql, columns, TableName), args);
-            return result;
-        }
         /// <summary>
         /// Returns a single row from the database
         /// </summary>
