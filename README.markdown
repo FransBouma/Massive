@@ -147,7 +147,7 @@ Aggregates with Named Arguments
 You can do the same thing as above for aggregates:
 
 	var sum = table.Sum(columns:Price, CategoryID:5);
-	var avg = table.Sum(columns:Price, CategoryID:3);
+	var avg = table.Avg(columns:Price, CategoryID:3);
 	var min = table.Min(columns:ID);
 	var max = table.Max(columns:CreatedOn);
 	var count = table.Count();
