@@ -7,8 +7,11 @@ using System.Data.Common;
 using System.Dynamic;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
+using System.Data.SqlClient;
+using System.Text.RegularExpressions;
 
-namespace Massive.PostgreSQL {
+namespace Massive.PostgreSQL{
     public static class ObjectExtensions {
         /// <summary>
         /// Extension method for adding in a bunch of parameters
@@ -77,6 +80,7 @@ namespace Massive.PostgreSQL {
             }
             return result;
         }
+
         /// <summary>
         /// Turns the object into a Dictionary
         /// </summary>
@@ -84,6 +88,21 @@ namespace Massive.PostgreSQL {
             return (IDictionary<string, object>)thingy.ToExpando();
         }
     }
+
+    /// <summary>
+    /// Convenience class for opening/executing data
+    /// </summary>
+    public static class DB {
+        public static DynamicModel Current {
+            get {
+                if (ConfigurationManager.ConnectionStrings.Count > 1) {
+                    return new DynamicModel(ConfigurationManager.ConnectionStrings[1].Name);
+                }
+                throw new InvalidOperationException("Need a connection string name - can't determine what it is");
+            }
+        }
+    }
+    
     /// <summary>
     /// A class that wraps your database table in Dynamic Funtime
     /// </summary>
@@ -94,10 +113,12 @@ namespace Massive.PostgreSQL {
             dynamic dm = new DynamicModel(connectionStringName);
             return dm;
         }
-        public DynamicModel(string connectionStringName, string tableName = "", string primaryKeyField = "") {
+        public DynamicModel(string connectionStringName, string tableName = "",
+            string primaryKeyField = "", string descriptorField = "") {
             TableName = tableName == "" ? this.GetType().Name : tableName;
-            PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "id" : primaryKeyField;
-            var _providerName = "Npgsql";
+            PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
+            DescriptorField = descriptorField;
+			var _providerName = "Npgsql";
             _factory = DbProviderFactories.GetFactory(_providerName);
             ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
         }
@@ -115,12 +136,7 @@ namespace Massive.PostgreSQL {
                 if (exists) {
                     var key = item.ToString();
                     var val = coll[key];
-                    if (!String.IsNullOrEmpty(val)) {
-                        //what to do here? If it's empty... set it to NULL?
-                        //if it's a string value - let it go through if it's NULLABLE?
-                        //Empty? WTF?
-                        dc.Add(key, val);
-                    }
+                    dc.Add(key, val);
                 }
             }
             return result;
@@ -157,14 +173,15 @@ namespace Massive.PostgreSQL {
                 return result;
             }
         }
+        public string DescriptorField { get; protected set; }
         /// <summary>
         /// List out all the schema bits for use with ... whatever
         /// </summary>
         IEnumerable<dynamic> _schema;
         public IEnumerable<dynamic> Schema {
             get {
-                if(_schema == null)
-                    _schema= Query("SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @0", TableName);
+                if (_schema == null)
+                    _schema = Query("SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @0", TableName);
                 return _schema;
             }
         }
@@ -180,8 +197,6 @@ namespace Massive.PostgreSQL {
                 }
             }
         }
-
-
         public virtual IEnumerable<dynamic> Query(string sql, DbConnection connection, params object[] args) {
             using (var rdr = CreateCommand(sql, connection, args).ExecuteReader()) {
                 while (rdr.Read()) {
@@ -235,15 +250,7 @@ namespace Massive.PostgreSQL {
             }
             return commands;
         }
-        /// <summary>
-        /// Executes a set of objects as Insert or Update commands based on their property settings, within a transaction.
-        /// These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
-        /// With a PK property (whatever PrimaryKeyField is set to) will be created at UPDATEs
-        /// </summary>
-        public virtual int Save(params object[] things) {
-            var commands = BuildCommands(things);
-            return Execute(commands);
-        }
+
 
         public virtual int Execute(DbCommand command) {
             return Execute(new DbCommand[] { command });
@@ -288,15 +295,134 @@ namespace Massive.PostgreSQL {
         }
         public virtual string TableName { get; set; }
         /// <summary>
-        /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
+        /// Returns all records complying with the passed-in WHERE clause and arguments, 
+        /// ordered as specified, limited (TOP) by limit.
         /// </summary>
-        public virtual DbCommand CreateInsertCommand(object o) {
+        public virtual IEnumerable<dynamic> All(string where = "", string orderBy = "", int limit = 0, string columns = "*", params object[] args) {
+            string sql = BuildSelect(where, orderBy, limit);
+            return Query(string.Format(sql, columns, TableName), args);
+        }
+        private static string BuildSelect(string where, string orderBy, int limit) {
+			string sql = "SELECT {0} FROM {1} ";
+            if (!string.IsNullOrEmpty(where))
+                sql += where.Trim().StartsWith("where", StringComparison.OrdinalIgnoreCase) ? where : "WHERE " + where;
+            if (!String.IsNullOrEmpty(orderBy))
+                sql += orderBy.Trim().StartsWith("order by", StringComparison.OrdinalIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
+			if (limit > 0)
+				sql += " LIMIT " + limit;
+            return sql;
+        }
+
+        /// <summary>
+        /// Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords.
+        /// </summary>
+        public virtual dynamic Paged(string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage = 1, params object[] args)
+        {
+            return BuildPagedResult(where: where, orderBy: orderBy, columns: columns, pageSize: pageSize, currentPage: currentPage, args: args);
+        }
+
+        public virtual dynamic Paged(string sql, string primaryKey, string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage = 1, params object[] args)
+        {
+            return BuildPagedResult(sql, primaryKey, where, orderBy, columns, pageSize, currentPage, args);
+        }
+
+        private dynamic BuildPagedResult(string sql = "", string primaryKeyField = "", string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage = 1, params object[] args)
+        {
+            dynamic result = new ExpandoObject();
+            var countSQL = "";
+            if (!string.IsNullOrEmpty(sql))
+                countSQL = string.Format("SELECT COUNT({0}) FROM ({1}) AS PagedTable", primaryKeyField, sql);
+            else
+                countSQL = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
+
+            if (String.IsNullOrEmpty(orderBy))
+            {
+                orderBy = string.IsNullOrEmpty(primaryKeyField) ? PrimaryKeyField : primaryKeyField;
+            }
+
+            if (!string.IsNullOrEmpty(where))
+            {
+                if (!where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase))
+                {
+                    where = "WHERE " + where;
+                }
+            }
+
+            var query = "";
+            if (!string.IsNullOrEmpty(sql))
+				query = string.Format("{0} {1} {2} ", sql, where, orderBy);
+            else
+				query = string.Format("SELECT {0} FROM {1} {3} {4} ", columns, TableName, where, orderBy);
+
+            var pageStart = (currentPage - 1) * pageSize;
+			query += string.Format(" limit {0} offset {1}", pageSize, pageStart);
+            countSQL += where;
+            result.TotalRecords = Scalar(countSQL, args);
+            result.TotalPages = result.TotalRecords / pageSize;
+            if (result.TotalRecords % pageSize > 0)
+                result.TotalPages += 1;
+            result.Items = Query(string.Format(query, columns, TableName), args);
+            return result;
+        }
+        /// <summary>
+        /// Returns a single row from the database
+        /// </summary>
+        public virtual dynamic Single(string where, params object[] args) {
+            var sql = string.Format("SELECT * FROM {0} WHERE {1}", TableName, where);
+            return Query(sql, args).FirstOrDefault();
+        }
+        /// <summary>
+        /// Returns a single row from the database
+        /// </summary>
+        public virtual dynamic Single(object key, string columns = "*") {
+            var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", columns, TableName, PrimaryKeyField);
+            return Query(sql, key).FirstOrDefault();
+        }
+        /// <summary>
+        /// This will return a string/object dictionary for dropdowns etc
+        /// </summary>
+        public virtual IDictionary<string, object> KeyValues(string orderBy = "") {
+            if (String.IsNullOrEmpty(DescriptorField))
+                throw new InvalidOperationException("There's no DescriptorField set - do this in your constructor to describe the text value you want to see");
+            var sql = string.Format("SELECT {0},{1} FROM {2} ", PrimaryKeyField, DescriptorField, TableName);
+            if (!String.IsNullOrEmpty(orderBy))
+                sql += "ORDER BY " + orderBy;
+
+            var results = Query(sql).ToList().Cast<IDictionary<string, object>>();
+            return results.ToDictionary(key => key[PrimaryKeyField].ToString(), value => value[DescriptorField]);
+        }
+
+        /// <summary>
+        /// This will return an Expando as a Dictionary
+        /// </summary>
+        public virtual IDictionary<string, object> ItemAsDictionary(ExpandoObject item) {
+            return (IDictionary<string, object>)item;
+        }
+        //Checks to see if a key is present based on the passed-in value
+        public virtual bool ItemContainsKey(string key, ExpandoObject item) {
+            var dc = ItemAsDictionary(item);
+            return dc.ContainsKey(key);
+        }
+        /// <summary>
+        /// Executes a set of objects as Insert or Update commands based on their property settings, within a transaction.
+        /// These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
+        /// With a PK property (whatever PrimaryKeyField is set to) will be created at UPDATEs
+        /// </summary>
+        public virtual int Save(params object[] things) {
+            foreach (var item in things) {
+                if (!IsValid(item)) {
+                    throw new InvalidOperationException("Can't save this item: " + String.Join("; ", Errors.ToArray()));
+                }
+            }
+            var commands = BuildCommands(things);
+            return Execute(commands);
+        }
+        public virtual DbCommand CreateInsertCommand(dynamic expando) {
             DbCommand result = null;
-            var expando = o.ToExpando();
             var settings = (IDictionary<string, object>)expando;
             var sbKeys = new StringBuilder();
             var sbVals = new StringBuilder();
-            var stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2}) RETURNING {3}";
+            var stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2})";
             result = CreateCommand(stub, null);
             int counter = 0;
             foreach (var item in settings) {
@@ -308,7 +434,7 @@ namespace Massive.PostgreSQL {
             if (counter > 0) {
                 var keys = sbKeys.ToString().Substring(0, sbKeys.Length - 1);
                 var vals = sbVals.ToString().Substring(0, sbVals.Length - 1);
-                var sql = string.Format(stub, TableName, keys, vals,PrimaryKeyField);
+                var sql = string.Format(stub, TableName, keys, vals);
                 result.CommandText = sql;
             } else throw new InvalidOperationException("Can't parse this object to the database - there are no properties set");
             return result;
@@ -316,17 +442,16 @@ namespace Massive.PostgreSQL {
         /// <summary>
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
         /// </summary>
-        public virtual DbCommand CreateUpdateCommand(object o, object key) {
-            var expando = o.ToExpando();
+        public virtual DbCommand CreateUpdateCommand(dynamic expando, object key) {
             var settings = (IDictionary<string, object>)expando;
             var sbKeys = new StringBuilder();
             var stub = "UPDATE {0} SET {1} WHERE {2} = @{3}";
-
+            var args = new List<object>();
             var result = CreateCommand(stub, null);
             int counter = 0;
             foreach (var item in settings) {
                 var val = item.Value;
-                if (!item.Key.Equals(PrimaryKeyField, StringComparison.CurrentCultureIgnoreCase) && item.Value != null) {
+                if (!item.Key.Equals(PrimaryKeyField, StringComparison.OrdinalIgnoreCase) && item.Value != null) {
                     result.AddParam(val);
                     sbKeys.AppendFormat("{0} = @{1}, \r\n", item.Key, counter.ToString());
                     counter++;
@@ -350,70 +475,118 @@ namespace Massive.PostgreSQL {
                 sql += string.Format("WHERE {0}=@0", PrimaryKeyField);
                 args = new object[] { key };
             } else if (!string.IsNullOrEmpty(where)) {
-                sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
+                sql += where.Trim().StartsWith("where", StringComparison.OrdinalIgnoreCase) ? where : "WHERE " + where;
             }
             return CreateCommand(sql, null, args);
         }
+
+        public bool IsValid(dynamic item) {
+            Errors.Clear();
+            Validate(item);
+            return Errors.Count == 0;
+        }
+
+        //Temporary holder for error messages
+        public IList<string> Errors = new List<string>();
         /// <summary>
         /// Adds a record to the database. You can pass in an Anonymous object, an ExpandoObject,
         /// A regular old POCO, or a NameValueColletion from a Request.Form or Request.QueryString
         /// </summary>
-        public virtual object Insert(object o) {
-            dynamic result = 0;
-            using (var conn = OpenConnection()) {
-                var cmd = CreateInsertCommand(o);    			 
-                cmd.Connection = conn;
-                result = cmd.ExecuteScalar();
+        public virtual dynamic Insert(object o) {
+            var ex = o.ToExpando();
+            if (!IsValid(ex)) {
+                throw new InvalidOperationException("Can't insert: " + String.Join("; ", Errors.ToArray()));
             }
-            return result;
+            if (BeforeSave(ex)) {
+                using (dynamic conn = OpenConnection()) {
+                    var cmd = CreateInsertCommand(ex);
+                    cmd.Connection = conn;
+                    cmd.ExecuteNonQuery();
+					cmd.CommandText = " returning {0} as newid ";
+                    ex.ID = cmd.ExecuteScalar();
+                    Inserted(ex);
+                }
+                return ex;
+            } else {
+                return null;
+            }
         }
         /// <summary>
         /// Updates a record in the database. You can pass in an Anonymous object, an ExpandoObject,
         /// A regular old POCO, or a NameValueCollection from a Request.Form or Request.QueryString
         /// </summary>
         public virtual int Update(object o, object key) {
-            return Execute(CreateUpdateCommand(o, key));
+            var ex = o.ToExpando();
+            if (!IsValid(ex)) {
+                throw new InvalidOperationException("Can't Update: " + String.Join("; ", Errors.ToArray()));
+            }
+            var result = 0;
+            if (BeforeSave(ex)) {
+                result = Execute(CreateUpdateCommand(ex, key));
+                Updated(ex);
+            }
+            return result;
         }
         /// <summary>
         /// Removes one or more records from the DB according to the passed-in WHERE
         /// </summary>
         public int Delete(object key = null, string where = "", params object[] args) {
-            return Execute(CreateDeleteCommand(where: where, key: key, args: args));
-        }
-        /// <summary>
-        /// Returns all records complying with the passed-in WHERE clause and arguments, 
-        /// ordered as specified, limited (TOP) by limit.
-        /// </summary>
-        public virtual IEnumerable<dynamic> All(string where = "", string orderBy = "", int limit = 0, string columns = "*", params object[] args) {
-            string sql = BuildSelect(where, orderBy, limit);
-            return Query(string.Format(sql, columns, TableName), args);
-        }
-        private static string BuildSelect(string where, string orderBy, int limit) {
-            string sql = "SELECT {0} FROM {1} ";
-			if (!string.IsNullOrEmpty(where))
-				sql += where.Trim().StartsWith("where", StringComparison.OrdinalIgnoreCase) ? where : "WHERE " + where;
-			if (!String.IsNullOrEmpty(orderBy))
-				sql += orderBy.Trim().StartsWith("order by", StringComparison.OrdinalIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
-			if (limit > 0)
-				sql += " LIMIT " + limit; 
-			
-            return sql;
+            var deleted = this.Single(key);
+            var result = 0;
+            if (BeforeDelete(deleted)) {
+                result = Execute(CreateDeleteCommand(where: where, key: key, args: args));
+                Deleted(deleted);
+            }
+            return result;
         }
 
-        /// <summary>
-        /// Returns a single row from the database
-        /// </summary>
-        public virtual dynamic Single(string where, params object[] args) {
-            var sql = string.Format("SELECT * FROM {0} WHERE {1}", TableName, where);
-            return Query(sql, args).FirstOrDefault();
+        public void DefaultTo(string key, object value, dynamic item) {
+            if (!ItemContainsKey(key, item)) {
+                var dc = (IDictionary<string, object>)item;
+                dc[key] = value;
+            }
         }
-        /// <summary>
-        /// Returns a single row from the database
-        /// </summary>
-        public virtual dynamic Single(object key, string columns = "*") {
-            var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", columns, TableName, PrimaryKeyField);
-            return Query(sql, key).FirstOrDefault();
+
+        //Hooks
+        public virtual void Validate(dynamic item) { }
+        public virtual void Inserted(dynamic item) { }
+        public virtual void Updated(dynamic item) { }
+        public virtual void Deleted(dynamic item) { }
+        public virtual bool BeforeDelete(dynamic item) { return true; }
+        public virtual bool BeforeSave(dynamic item) { return true; }
+
+        //validation methods
+        public virtual void ValidatesPresenceOf(object value, string message = "Required") {
+            if (value == null)
+                Errors.Add(message);
+            if (String.IsNullOrEmpty(value.ToString()))
+                Errors.Add(message);
         }
+        //fun methods
+        public virtual void ValidatesNumericalityOf(object value, string message = "Should be a number") {
+            var type = value.GetType().Name;
+            var numerics = new string[] { "Int32", "Int16", "Int64", "Decimal", "Double", "Single", "Float" };
+            if (!numerics.Contains(type)) {
+                Errors.Add(message);
+            }
+        }
+        public virtual void ValidateIsCurrency(object value, string message = "Should be money") {
+            if (value == null)
+                Errors.Add(message);
+            decimal val = decimal.MinValue;
+            decimal.TryParse(value.ToString(), out val);
+            if (val == decimal.MinValue)
+                Errors.Add(message);
+
+
+        }
+        public int Count() {
+            return Count(TableName);
+        }
+        public int Count(string tableName, string where="") {
+            return (int)Scalar("SELECT COUNT(*) FROM " + tableName+" "+where);
+        }
+
         /// <summary>
         /// A helpful query tool
         /// </summary>
@@ -426,12 +599,11 @@ namespace Massive.PostgreSQL {
             if (info.ArgumentNames.Count != args.Length) {
                 throw new InvalidOperationException("Please use named arguments for this type of query - the column name, orderby, columns, etc");
             }
-
-
             //first should be "FindBy, Last, Single, First"
             var op = binder.Name;
             var columns = " * ";
             string orderBy = string.Format(" ORDER BY {0}", PrimaryKeyField);
+            string sql = "";
             string where = "";
             var whereArgs = new List<object>();
 
@@ -455,30 +627,44 @@ namespace Massive.PostgreSQL {
                     }
                 }
             }
+
             //Build the WHERE bits
             if (constraints.Count > 0) {
                 where = " WHERE " + string.Join(" AND ", constraints.ToArray());
             }
-            //build the SQL
-            string sql = "SELECT TOP 1 " + columns + " FROM " + TableName + where;
-            var justOne = op.StartsWith("First") || op.StartsWith("Last") || op.StartsWith("Get");
-
-            //Be sure to sort by DESC on the PK (PK Sort is the default)
-            if (op.StartsWith("Last")) {
-                orderBy = orderBy + " DESC ";
+            //probably a bit much here but... yeah this whole thing needs to be refactored...
+            if (op.ToLower() == "count") {
+                result = Scalar("SELECT COUNT(*) FROM " + TableName + where, whereArgs.ToArray());
+            } else if (op.ToLower() == "sum") {
+                result = Scalar("SELECT SUM(" + columns + ") FROM " + TableName + where, whereArgs.ToArray());
+            } else if (op.ToLower() == "max") {
+                result = Scalar("SELECT MAX(" + columns + ") FROM " + TableName + where, whereArgs.ToArray());
+            } else if (op.ToLower() == "min") {
+                result = Scalar("SELECT MIN(" + columns + ") FROM " + TableName + where, whereArgs.ToArray());
+            } else if (op.ToLower() == "avg") {
+                result = Scalar("SELECT AVG(" + columns + ") FROM " + TableName + where, whereArgs.ToArray());
             } else {
-                //default to multiple
-                sql = "SELECT " + columns + " FROM " + TableName + where;
-            }
 
-            if (justOne) {
-                //return a single record
-                result = Query(sql + orderBy, whereArgs.ToArray()).FirstOrDefault();
-            } else {
-                //return lots
-                result = Query(sql + orderBy, whereArgs.ToArray());
-            }
+                //build the SQL
+				sql = "SELECT " + columns + " FROM " + TableName + where + " limit 1;";
+                var justOne = op.StartsWith("First") || op.StartsWith("Last") || op.StartsWith("Get") || op.StartsWith("Single");
 
+                //Be sure to sort by DESC on the PK (PK Sort is the default)
+                if (op.StartsWith("Last")) {
+                    orderBy = orderBy + " DESC ";
+                } else {
+                    //default to multiple
+                    sql = "SELECT " + columns + " FROM " + TableName + where;
+                }
+
+                if (justOne) {
+                    //return a single record
+                    result = Query(sql + orderBy, whereArgs.ToArray()).FirstOrDefault();
+                } else {
+                    //return lots
+                    result = Query(sql + orderBy, whereArgs.ToArray());
+                }
+            }
             return true;
         }
     }
