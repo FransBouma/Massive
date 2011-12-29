@@ -102,7 +102,9 @@ namespace Massive {
             }
         }
     }
-    
+
+
+    //-------------Dynamic Model--------------------------------------
     /// <summary>
     /// A class that wraps your database table in Dynamic Funtime
     /// </summary>
@@ -117,8 +119,11 @@ namespace Massive {
             string primaryKeyField = "", string descriptorField = "") {
             TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
-            DescriptorField = descriptorField;
+            
+            //hb
             var _providerName = "System.Data.SqlClient";
+            //string _providerName = "System.Data.SqlServerCe.4.0";
+
             _factory = DbProviderFactories.GetFactory(_providerName);
             ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
         }
@@ -173,7 +178,12 @@ namespace Massive {
                 return result;
             }
         }
-        public string DescriptorField { get; protected set; }
+        private string _descriptorField;
+        public string DescriptorField {
+            get {
+                return _descriptorField;
+            }
+        }
         /// <summary>
         /// List out all the schema bits for use with ... whatever
         /// </summary>
@@ -314,52 +324,28 @@ namespace Massive {
         /// <summary>
         /// Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords.
         /// </summary>
-        public virtual dynamic Paged(string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage = 1, params object[] args)
-        {
-            return BuildPagedResult(where: where, orderBy: orderBy, columns: columns, pageSize: pageSize, currentPage: currentPage, args: args);
-        }
-
-        public virtual dynamic Paged(string sql, string primaryKey, string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage = 1, params object[] args)
-        {
-            return BuildPagedResult(sql, primaryKey, where, orderBy, columns, pageSize, currentPage, args);
-        }
-
-        private dynamic BuildPagedResult(string sql = "", string primaryKeyField = "", string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage = 1, params object[] args)
-        {
+        public virtual dynamic Paged(string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage = 1, params object[] args) {
             dynamic result = new ExpandoObject();
-            var countSQL = "";
-            if (!string.IsNullOrEmpty(sql))
-                countSQL = string.Format("SELECT COUNT({0}) FROM ({1}) AS PagedTable", primaryKeyField, sql);
-            else
-                countSQL = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
-
+            var countSQL = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
             if (String.IsNullOrEmpty(orderBy))
-            {
-                orderBy = string.IsNullOrEmpty(primaryKeyField) ? PrimaryKeyField : primaryKeyField;
-            }
+                orderBy = PrimaryKeyField;
 
-            if (!string.IsNullOrEmpty(where))
-            {
-                if (!where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase))
-                {
-                    where = "WHERE " + where;
+            if (!string.IsNullOrEmpty(where)) {
+                if (!where.Trim().StartsWith("where", StringComparison.OrdinalIgnoreCase)) {
+                    //where = "WHERE " + where;
+                    //Harsh Bhasin:11/18/2011-- added  a space before WHERE
+                    where = " WHERE " + where;
                 }
             }
-
-            var query = "";
-            if (!string.IsNullOrEmpty(sql))
-                query = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM ({3}) AS PagedTable {4}) AS Paged ", columns, pageSize, orderBy, sql, where);
-            else
-                query = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3} {4}) AS Paged ", columns, pageSize, orderBy, TableName, where);
-
+            var sql = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3} {4}) AS Paged ", columns, pageSize, orderBy, TableName, where);
             var pageStart = (currentPage - 1) * pageSize;
-            query += string.Format(" WHERE Row > {0} AND Row <={1}", pageStart, (pageStart + pageSize));
+            sql += string.Format(" WHERE Row > {0} AND Row <={1}", pageStart, (pageStart + pageSize));
             countSQL += where;
             result.TotalRecords = Scalar(countSQL, args);
             result.TotalPages = result.TotalRecords / pageSize;
             if (result.TotalRecords % pageSize > 0)
                 result.TotalPages += 1;
-            result.Items = Query(string.Format(query, columns, TableName), args);
+            result.Items = Query(string.Format(sql, columns, TableName), args);
             return result;
         }
         /// <summary>
@@ -385,9 +371,7 @@ namespace Massive {
             var sql = string.Format("SELECT {0},{1} FROM {2} ", PrimaryKeyField, DescriptorField, TableName);
             if (!String.IsNullOrEmpty(orderBy))
                 sql += "ORDER BY " + orderBy;
-
-            var results = Query(sql).ToList().Cast<IDictionary<string, object>>();
-            return results.ToDictionary(key => key[PrimaryKeyField].ToString(), value => value[DescriptorField]);
+            return (IDictionary<string, object>)Query(sql);
         }
 
         /// <summary>
@@ -582,7 +566,7 @@ namespace Massive {
             return Count(TableName);
         }
         public int Count(string tableName, string where="") {
-            return (int)Scalar("SELECT COUNT(*) FROM " + tableName+" "+where);
+            return (int)Scalar("SELECT COUNT(*) FROM " + tableName);
         }
 
         /// <summary>
