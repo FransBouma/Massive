@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Configuration;
@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Data.SqlClient;
 using System.Text.RegularExpressions;
+using System.Reflection;
 
 namespace Massive {
     public static class ObjectExtensions {
@@ -25,23 +26,39 @@ namespace Massive {
         /// Extension for adding single parameter
         /// </summary>
         public static void AddParam(this DbCommand cmd, object item) {
+            AddNamedParam(cmd, item, cmd.Parameters.Count.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+        /// <summary>
+        /// Extension for adding in a bunch of named parameters
+        /// </summary>
+        public static void AddNamedParams(this DbCommand cmd, object arg) {
+            var t = arg.GetType();
+            var pi = t.GetProperties();
+            foreach (var p in pi) {
+                AddNamedParam(cmd, p.GetValue(arg, null), p.Name);
+            }
+        }
+        /// <summary>
+        /// Extension for adding single named parameter
+        /// </summary>
+        public static void AddNamedParam(this DbCommand cmd, object value, string name) {
             var p = cmd.CreateParameter();
-            p.ParameterName = string.Format("@{0}", cmd.Parameters.Count);
-            if (item == null) {
+            p.ParameterName = string.Format("@{0}", name);
+            if (value == null) {
                 p.Value = DBNull.Value;
             } else {
-                if (item.GetType() == typeof(Guid)) {
-                    p.Value = item.ToString();
+                if (value is Guid) {
+                    p.Value = value.ToString();
                     p.DbType = DbType.String;
                     p.Size = 4000;
-                } else if (item.GetType() == typeof(ExpandoObject)) {
-                    var d = (IDictionary<string, object>)item;
+                } else if (value is ExpandoObject) {
+                    var d = (IDictionary<string, object>)value;
                     p.Value = d.Values.FirstOrDefault();
                 } else {
-                    p.Value = item;
+                    p.Value = value;
                 }
-                if (item.GetType() == typeof(string))
-                    p.Size = ((string)item).Length > 4000 ? -1 : 4000;
+                if (value is string)
+                    p.Size = ((string)value).Length > 4000 ? -1 : 4000;
             }
             cmd.Parameters.Add(p);
         }
@@ -102,7 +119,7 @@ namespace Massive {
             }
         }
     }
-    
+
     /// <summary>
     /// A class that wraps your database table in Dynamic Funtime
     /// </summary>
@@ -119,10 +136,10 @@ namespace Massive {
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
             DescriptorField = descriptorField;
             var _providerName = "System.Data.SqlClient";
-            
+
             if(ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName != null)
                 _providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
-            
+
             _factory = DbProviderFactories.GetFactory(_providerName);
             ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
         }
@@ -209,6 +226,17 @@ namespace Massive {
             }
         }
         /// <summary>
+        /// Enumerates the reader yielding the result of a stored procedure
+        /// </summary>
+        public virtual IEnumerable<dynamic> StoredProcedure(string sql, object args) {
+            using (var conn = OpenConnection()) {
+                var rdr = CreateSPCommand(sql, conn, args).ExecuteReader();
+                while (rdr.Read()) {
+                    yield return rdr.RecordToExpando();
+                }
+            }
+        }
+        /// <summary>
         /// Returns a single result
         /// </summary>
         public virtual object Scalar(string sql, params object[] args) {
@@ -227,6 +255,18 @@ namespace Massive {
             result.CommandText = sql;
             if (args.Length > 0)
                 result.AddParams(args);
+            return result;
+        }
+        /// <summary>
+        /// Created a DBCommand that you can use for loving your database with stored procedures.
+        /// </summary>
+        DbCommand CreateSPCommand(string sql, DbConnection conn, object args) {
+            var result = _factory.CreateCommand();
+            result.Connection = conn;
+            result.CommandText = sql;
+            result.CommandType = CommandType.StoredProcedure;
+            if (args != null)
+                result.AddNamedParams(args);
             return result;
         }
         /// <summary>
@@ -282,7 +322,7 @@ namespace Massive {
         }
         public virtual string PrimaryKeyField { get; set; }
         /// <summary>
-        /// Conventionally introspects the object passed in for a field that 
+        /// Conventionally introspects the object passed in for a field that
         /// looks like a PK. If you've named your PrimaryKeyField, this becomes easy
         /// </summary>
         public virtual bool HasPrimaryKey(object o) {
@@ -299,7 +339,7 @@ namespace Massive {
         }
         public virtual string TableName { get; set; }
         /// <summary>
-        /// Returns all records complying with the passed-in WHERE clause and arguments, 
+        /// Returns all records complying with the passed-in WHERE clause and arguments,
         /// ordered as specified, limited (TOP) by limit.
         /// </summary>
         public virtual IEnumerable<dynamic> All(string where = "", string orderBy = "", int limit = 0, string columns = "*", params object[] args) {
