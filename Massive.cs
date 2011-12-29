@@ -305,7 +305,7 @@ namespace Massive {
         private static string BuildSelect(string where, string orderBy, int limit) {
             string sql = limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1} " : "SELECT {0} FROM {1} ";
             if (!string.IsNullOrEmpty(where))
-                sql += where.Trim().StartsWith("where", StringComparison.OrdinalIgnoreCase) ? where : "WHERE " + where;
+                sql += where.Trim().StartsWith("where", StringComparison.OrdinalIgnoreCase) ? where : " WHERE " + where;
             if (!String.IsNullOrEmpty(orderBy))
                 sql += orderBy.Trim().StartsWith("order by", StringComparison.OrdinalIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
             return sql;
@@ -342,7 +342,7 @@ namespace Massive {
             {
                 if (!where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase))
                 {
-                    where = "WHERE " + where;
+                    where = " WHERE " + where;
                 }
             }
 
