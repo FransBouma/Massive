@@ -419,9 +419,9 @@ namespace Massive {
             var commands = BuildCommands(things);
             return Execute(commands);
         }
-        public virtual DbCommand CreateInsertCommand(dynamic expando) {
-            DbCommand result = null;
-            var settings = (IDictionary<string, object>)expando;
+        public virtual DbCommand CreateInsertCommand(object item) {
+            DbCommand resul = null;
+            var settings = item.ToDictionary();
             var sbKeys = new StringBuilder();
             var sbVals = new StringBuilder();
             var stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2})";
@@ -444,8 +444,8 @@ namespace Massive {
         /// <summary>
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
         /// </summary>
-        public virtual DbCommand CreateUpdateCommand(dynamic expando, object key) {
-            var settings = (IDictionary<string, object>)expando;
+        public virtual DbCommand CreateUpdateCommand(object item, object key) {
+            var settings = item.ToDictionary();
             var sbKeys = new StringBuilder();
             var stub = "UPDATE {0} SET {1} WHERE {2} = @{3}";
             var args = new List<object>();
