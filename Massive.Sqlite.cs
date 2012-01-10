@@ -168,17 +168,17 @@ namespace Massive.SQLite
             {
                 result = null;
             }
-            else if (def == "getdate()" || def == "(getdate())")
+            else if (def == "CURRENT_TIME")
             {
-                result = DateTime.Now.ToShortDateString();
+                result = DateTime.UtcNow.ToString("HH:mm:ss");
             }
-            else if (def == "newid()")
+            else if (def == "CURRENT_DATE")
             {
-                result = Guid.NewGuid().ToString();
+                result = DateTime.UtcNow.ToString("yyyy-MM-dd");
             }
-            else
+            else if (def == "CURRENT_TIMESTAMP")
             {
-                result = def.Replace("(", "").Replace(")", "");
+                result = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
             }
             return result;
         }
@@ -209,7 +209,20 @@ namespace Massive.SQLite
             get
             {
                 if (_schema == null)
-                    _schema = Query("SELECT * FROM sqlite_master WHERE type = 'table' and name = @0", TableName);
+                {
+                    var rows = new List<dynamic>();
+                    foreach (var row in Query("PRAGMA table_info('" + TableName + "')"))
+                    {
+                        rows.Add(new
+                        {
+                            COLUMN_NAME = (row as IDictionary<string, object>)["name"].ToString(),
+                            DATA_TYPE = (row as IDictionary<string, object>)["type"].ToString(),
+                            IS_NULLABLE = (row as IDictionary<string, object>)["notnull"].ToString() == "0" ? "NO" : "YES",
+                            COLUMN_DEFAULT = (row as IDictionary<string, object>)["dflt_value"] ?? "",
+                        });
+                    }
+                    _schema = rows;
+                }
                 return _schema;
             }
         }
