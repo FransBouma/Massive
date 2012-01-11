@@ -21,57 +21,74 @@ Massive is a "wrapper" for your DB tables and uses System.Dynamic extensively. I
 Code Please
 -----------
 Let's say we have a table named "Products". You create a class like this:
-    
-	public class Products:DynamicModel {
-        	//you don't have to specify the connection - Massive will use the first one it finds in your config
-		public Products():base("northwind", "products","productid") {}
 
-    }
+```csharp
+public class Products:DynamicModel {
+	//you don't have to specify the connection - Massive will use the first one it finds in your config
+	public Products():base("northwind", "products","productid") {}
+}
+```
 
 You could also just instantiate it inline, as needed:
 
-	var tbl = new DynamicModel("northwind", tableName:"Products", primaryKeyField:"ProductID");
+```csharp
+var tbl = new DynamicModel("northwind", tableName:"Products", primaryKeyField:"ProductID");
+```
 
 Or ignore the object hierarchy altogether:
 	
-	Massive.DB.Current.Query(...);
+```csharp
+Massive.DB.Current.Query(...);
+```
 
 Now you can query thus:
 
-	var table = new Products();
-	//grab all the products
-	var products = table.All();
-	//just grab from category 4. This uses named parameters
-	var productsFour = table.All(columns: "ProductName as Name", where: "WHERE categoryID=@0",args: 4);
+```csharp
+var table = new Products();
+//grab all the products
+var products = table.All();
+//just grab from category 4. This uses named parameters
+var productsFour = table.All(columns: "ProductName as Name", where: "WHERE categoryID=@0",args: 4);
+```
 
 That works, but Massive is "dynamic" - which means that it can figure a lot of things out on the fly. That query above can be rewritten like this:
 
-	dynamic table = new Products(); //"dynamic" is important here - don't use "var"!
-	var productsFour = table.Find(CategoryID:4,columns:"ProductName");
+```csharp
+dynamic table = new Products(); //"dynamic" is important here - don't use "var"!
+var productsFour = table.Find(CategoryID:4,columns:"ProductName");
+```
 	
 The "Find" method doesn't exist, but since Massive is dynamic it will try to infer what you mean by using DynamicObject's TryInvokeMember. See the source for more details. There's more on the dynamic query stuff down below.
 	
 You can also run ad-hoc queries as needed:
 
-	var result = tbl.Query("SELECT * FROM Categories");
+```csharp
+var result = tbl.Query("SELECT * FROM Categories");
+```
 
 This will pull categories and enumerate the results - streaming them as opposed to bulk-fetching them (thanks to Jeroen Haegebaert for the code). If you need to run a Fetch - you can:
 
-	var result = tbl.Fetch("SELECT * FROM Categories");
+```csharp
+var result = tbl.Fetch("SELECT * FROM Categories");
+```
 
-If you want to have a Paged result set - you can:
+If you want to have a paged result set - you can:
 
-	var result = tbl.Paged(where: "UnitPrice > 20", currentPage:2, pageSize: 20);
+```csharp
+var result = tbl.Paged(where: "UnitPrice > 20", currentPage:2, pageSize: 20);
+```
 
 In this example, ALL of the arguments are optional and default to reasonable values. CurrentPage defaults to 1, pageSize defaults to 20, where defaults to nothing.
 
-What you get back is IEnumerable < ExpandoObject > - meaning that it's malleable and exciting. It will take the shape of whatever you return in your query, and it will have properties and so on. You can assign events to it, you can create delegates on the fly. You can give it chocolate, and it will kiss you.
+What you get back is `IEnumerable<ExpandoObject>` - meaning that it's malleable and exciting. It will take the shape of whatever you return in your query, and it will have properties and so on. You can assign events to it, you can create delegates on the fly. You can give it chocolate, and it will kiss you.
 
 That's pretty much it. One thing I really like is the groovy DSL that Massive uses - it looks just like SQL. If you want, you can use this DSL to query the database:
 
-	var table = new Products();
-	var productsThatILike = table.Query("SELECT ProductName, CategoryName FROM Products INNER JOIN Categories ON Categories.CategoryID = Products.CategoryID WHERE CategoryID = @0",5);
-	//get down!
+```csharp
+var table = new Products();
+var productsThatILike = table.Query("SELECT ProductName, CategoryName FROM Products INNER JOIN Categories ON Categories.CategoryID = Products.CategoryID WHERE CategoryID = @0",5);
+//get down!
+```
 
 Some of you might look at that and think it looks suspiciously like inline SQL. It *does* look sort of like it doesn't it! But I think it reads a bit better than Linq to SQL - it's a bit closer to the mark if you will. 
 
@@ -81,37 +98,45 @@ Massive is built on top of dynamics - so if you send an object to a table, it wi
 
 You can send just about anything into the MassiveTransmoQueryfier and it will magically get turned into SQL:
 
-	var table = new Products();
-	var poopy = new {ProductName = "Chicken Fingers"};
-	//update Product with ProductID = 12 to have a ProductName of "Chicken Fingers"
-	table.Update(poopy, 12);
+```csharp
+var table = new Products();
+var poopy = new {ProductName = "Chicken Fingers"};
+//update Product with ProductID = 12 to have a ProductName of "Chicken Fingers"
+table.Update(poopy, 12);
+```
 
 This also works if you have a form on your web page with the name "ProductName" - then you submit it:
 
-	var table = new Products();
-	//update Product with ProductID = 12 to have a ProductName of whatever was submitted via the form
-	table.Update(poopy, Request.Form);
+```csharp
+var table = new Products();
+//update Product with ProductID = 12 to have a ProductName of whatever was submitted via the form
+table.Update(poopy, Request.Form);
+```
 
 Insert works the same way:
 
-	//pretend we have a class like Products but it's called Categories
-	var table = new Categories();
-	//do it up - the new ID will be returned from the query
-	var newID = table.Insert(new {CategoryName = "Buck Fify Stuff", Description = "Things I like"});
+```csharp
+//pretend we have a class like Products but it's called Categories
+var table = new Categories();
+//do it up - the new ID will be returned from the query
+var newID = table.Insert(new {CategoryName = "Buck Fify Stuff", Description = "Things I like"});
+```
 
 Yippee Skippy! Now we get to the fun part - and one of the reasons I had to spend 150 more lines of code on something you probably won't care about. What happens when we send a whole bunch of goodies to the database at once!
 
-	var table = new Products();
-	//OH NO YOU DIDN't just pass in an integer inline without a parameter! 
-	//I think I might have... yes
-	var drinks = table.All("WHERE CategoryID = 8");
-	//what we get back here is an IEnumerable < ExpandoObject > - we can go to town
-	foreach(var item in drinks){
-		//turn them into Haack Snacks
-		item.CategoryID = 12;
-	}
-	//Let's update these in bulk, in a transaction shall we?
-	table.Save(drinks);
+```csharp
+var table = new Products();
+//OH NO YOU DIDN't just pass in an integer inline without a parameter! 
+//I think I might have... yes
+var drinks = table.All("WHERE CategoryID = 8");
+//what we get back here is an IEnumerable < ExpandoObject > - we can go to town
+foreach(var item in drinks){
+	//turn them into Haack Snacks
+	item.CategoryID = 12;
+}
+//Let's update these in bulk, in a transaction shall we?
+table.Save(drinks);
+```
 	
 Named Argument Query Syntax
 -------------------
@@ -119,38 +144,42 @@ I recently added the ability to run more friendly queries using Named Arguments 
 
 If your needs are more complicated - I would suggest just passing in your own SQL with Query().
 
-	//important - must be dynamic
-	dynamic table = new Products();
+```csharp
+//important - must be dynamic
+dynamic table = new Products();
 
-	var drinks = table.FindBy(CategoryID:8);
-	//what we get back here is an IEnumerable < ExpandoObject > - we can go to town
-	foreach(var item in drinks){
-		Console.WriteLine(item.ProductName);
-	}
-	//returns the first item in the DB for category 8
-	var first = table.First(CategoryID:8);
-	
-	//you dig it - the last as sorted by PK
-	var last = table.Last(CategoryID:8);
-	
-	//you can order by whatever you like
-	var firstButReallyLast = table.First(CategoryID:8,OrderBy:"PK DESC");
-	
-	//only want one column?
-	var price = table.First(CategoryID:8,Columns:"UnitPrice").UnitPrice;
-	
-	//Multiple Criteria?
-	var items = table.Find(CategoryID:5, UnitPrice:100, OrderBy:"UnitPrice DESC");
+var drinks = table.FindBy(CategoryID:8);
+//what we get back here is an IEnumerable < ExpandoObject > - we can go to town
+foreach(var item in drinks){
+	Console.WriteLine(item.ProductName);
+}
+//returns the first item in the DB for category 8
+var first = table.First(CategoryID:8);
+
+//you dig it - the last as sorted by PK
+var last = table.Last(CategoryID:8);
+
+//you can order by whatever you like
+var firstButReallyLast = table.First(CategoryID:8,OrderBy:"PK DESC");
+
+//only want one column?
+var price = table.First(CategoryID:8,Columns:"UnitPrice").UnitPrice;
+
+//Multiple Criteria?
+var items = table.Find(CategoryID:5, UnitPrice:100, OrderBy:"UnitPrice DESC");
+```
 	
 Aggregates with Named Arguments
 -------------------------------
 You can do the same thing as above for aggregates:
 
-	var sum = table.Sum(columns:Price, CategoryID:5);
-	var avg = table.Avg(columns:Price, CategoryID:3);
-	var min = table.Min(columns:ID);
-	var max = table.Max(columns:CreatedOn);
-	var count = table.Count();
+```csharp
+var sum = table.Sum(columns:Price, CategoryID:5);
+var avg = table.Avg(columns:Price, CategoryID:3);
+var min = table.Min(columns:ID);
+var max = table.Max(columns:CreatedOn);
+var count = table.Count();
+```
 	
 Metadata
 --------
@@ -161,7 +190,10 @@ In addition, if you want to generate an empty instance of a column - you can now
 Factory Constructor
 -------------------
 One thing that can be useful is to use Massive to just run a quick query. You can do that now by using "Open()" which is a static builder on DynamicModel:
-	var db = Massive.DynamicModel.Open("myConnectionStringName");
+
+```csharp
+var db = Massive.DynamicModel.Open("myConnectionStringName");
+```
 
 You can execute whatever you like at that point.
 
@@ -169,38 +201,44 @@ Validations
 -----------
 One thing that's always needed when working with data is the ability to stop execution if something isn't right. Massive now has Validations, which are built with the Rails approach in mind:
 
-    public class Productions:DynamicModel {
-        public Productions():base("MyConnectionString","Productions","ID") {}
-        public override void Validate(dynamic item) {
-			ValidatesPresenceOf("Title");
-            ValidatesNumericalityOf(item.Price);
-            ValidateIsCurrency(item.Price);
-			if (item.Price <= 0)
-                Errors.Add("Price can't be negative");
-        }
+```csharp
+public class Productions:DynamicModel {
+	public Productions():base("MyConnectionString","Productions","ID") {}
+	public override void Validate(dynamic item) {
+		ValidatesPresenceOf("Title");
+		ValidatesNumericalityOf(item.Price);
+		ValidateIsCurrency(item.Price);
+		if (item.Price <= 0)
+			Errors.Add("Price can't be negative");
 	}
+}
+```
 
-The idea here is that Validate() is called prior to Insert/Update. If it fails, an Error collection is populated and an InvalidOperationException is thrown. That simple. With each of the validations above, a message can be passed in.
+The idea here is that `Validate()` is called prior to Insert/Update. If it fails, an Error collection is populated and an InvalidOperationException is thrown. That simple. With each of the validations above, a message can be passed in.
 
 CallBacks
 ---------
-Need something to happen After Update/Insert/Delete? Need to halt BeforeSave? Massive has callbacks to let you do just that:
+Need something to happen after Update/Insert/Delete? Need to halt before save? Massive has callbacks to let you do just that:
 
-    public class Customers:DynamicModel {
-        public Customers():base("MyConnectionString","Customers","ID") {}
-        
-		//Add the person to Highrise CRM when they're added to the system...
-		public override void Inserted(dynamic item) {
-            //send them to Highrise
-            var svc = new HighRiseApi();
-            svc.AddPerson(...);
-        }
+```csharp
+public class Customers:DynamicModel {
+	public Customers():base("MyConnectionString","Customers","ID") {}
+	
+	//Add the person to Highrise CRM when they're added to the system...
+	public override void Inserted(dynamic item) {
+		//send them to Highrise
+		var svc = new HighRiseApi();
+		svc.AddPerson(...);
 	}
+}
+```
+
 The callbacks you can use are:
-*Inserted
-*Updated
-*Deleted
-*BeforeDelete
-*BeforeSave
+
+ * Inserted
+ * Updated
+ * Deleted
+ * BeforeDelete
+ * BeforeSave
 
 
