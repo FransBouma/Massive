@@ -168,15 +168,15 @@ namespace Massive.SQLite
             {
                 result = null;
             }
-            else if (def == "CURRENT_TIME")
+            else if (def.ToUpper() == "CURRENT_TIME")
             {
                 result = DateTime.UtcNow.ToString("HH:mm:ss");
             }
-            else if (def == "CURRENT_DATE")
+            else if (def.ToUpper() == "CURRENT_DATE")
             {
                 result = DateTime.UtcNow.ToString("yyyy-MM-dd");
             }
-            else if (def == "CURRENT_TIMESTAMP")
+            else if (def.ToUpper() == "CURRENT_TIMESTAMP")
             {
                 result = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
             }
