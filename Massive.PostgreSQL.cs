@@ -695,7 +695,7 @@ namespace Massive.PostgreSQL
         }
         public int Count(string tableName, string where = "")
         {
-            return (int)Scalar("SELECT COUNT(*) FROM " + tableName + " " + where);
+            return (int)(long)Scalar("SELECT COUNT(*) FROM " + tableName + " " + where);
         }
 
         /// <summary>
