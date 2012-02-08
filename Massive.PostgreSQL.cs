@@ -695,7 +695,11 @@ namespace Massive.PostgreSQL
         }
         public int Count(string tableName, string where = "")
         {
-            return (int)Scalar("SELECT COUNT(*) FROM " + tableName + " " + where);
+            // Scalar returns a long that has been casted to an object. Casting a boxed
+            // long directly to int throws InvalidCastException. This will successfully
+            // cast without changing the API.
+            // HACK: Change API so count returns long
+            return (int)(long)Scalar("SELECT COUNT(*) FROM " + tableName + " " + where);
         }
 
         /// <summary>
