@@ -133,7 +133,7 @@ namespace Massive {
             var schema = Schema;
             //loop the collection, setting only what's in the Schema
             foreach (var item in coll.Keys) {
-                var exists = schema.Any(x => x.COLUMN_NAME.ToLower() == item.ToString().ToLower());
+                var exists = schema.Any(x => x.Field.ToLower() == item.ToString().ToLower());
                 if (exists) {
                     var key = item.ToString();
                     var val = coll[key];
@@ -147,11 +147,12 @@ namespace Massive {
         /// </summary>
         public dynamic DefaultValue(dynamic column) {
             dynamic result = null;
-            string def = column.COLUMN_DEFAULT;
+            string def = column.Default;
+            //TODO: bits?
             if (String.IsNullOrEmpty(def)) {
                 result = null;
-            } else if (def == "getdate()" || def == "(getdate())") {
-                result = DateTime.Now.ToShortDateString();
+            } else if (def.StartsWith ("CURRENT_TIMESTAMP")) {
+                result = DateTime.Now;
             } else if (def == "newid()") {
                 result = Guid.NewGuid().ToString();
             } else {
@@ -168,7 +169,7 @@ namespace Massive {
                 var schema = Schema;
                 foreach (dynamic column in schema) {
                     var dc = (IDictionary<string, object>)result;
-                    dc.Add(column.COLUMN_NAME, DefaultValue(column));
+                    dc.Add(column.Field, DefaultValue(column));
                 }
                 result._Table = this;
                 return result;
@@ -182,7 +183,7 @@ namespace Massive {
         public IEnumerable<dynamic> Schema {
             get {
                 if (_schema == null)
-                    _schema = Query ("DESCRIBE @0", TableName);
+                    _schema = Query ("DESCRIBE " + TableName);
                 return _schema;
             }
         }
