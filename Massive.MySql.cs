@@ -7,9 +7,6 @@ using System.Data.Common;
 using System.Dynamic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using System.Data.SqlClient;
-using System.Text.RegularExpressions;
 
 namespace Massive {
     public static class ObjectExtensions {
@@ -185,7 +182,7 @@ namespace Massive {
         public IEnumerable<dynamic> Schema {
             get {
                 if (_schema == null)
-                    _schema = Query("SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @0", TableName);
+                    _schema = Query ("DESCRIBE @0", TableName);
                 return _schema;
             }
         }
@@ -197,14 +194,14 @@ namespace Massive {
             using (var conn = OpenConnection()) {
                 var rdr = CreateCommand(sql, conn, args).ExecuteReader();
                 while (rdr.Read()) {
-                    yield return rdr.RecordToExpando(); ;
+                    yield return rdr.RecordToExpando();
                 }
             }
         }
         public virtual IEnumerable<dynamic> Query(string sql, DbConnection connection, params object[] args) {
             using (var rdr = CreateCommand(sql, connection, args).ExecuteReader()) {
                 while (rdr.Read()) {
-                    yield return rdr.RecordToExpando(); ;
+                    yield return rdr.RecordToExpando();
                 }
             }
         }
@@ -307,11 +304,13 @@ namespace Massive {
             return Query(string.Format(sql, columns, TableName), args);
         }
         private static string BuildSelect(string where, string orderBy, int limit) {
-            string sql = limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1} " : "SELECT {0} FROM {1} ";
-            if (!string.IsNullOrEmpty(where))
-                sql += where.Trim().StartsWith("where", StringComparison.OrdinalIgnoreCase) ? where : " WHERE " + where;
-            if (!String.IsNullOrEmpty(orderBy))
-                sql += orderBy.Trim().StartsWith("order by", StringComparison.OrdinalIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
+            string sql = "SELECT {0} FROM {1} ";
+            if (!string.IsNullOrEmpty (where))
+                sql += where.TrimStart ().StartsWith ("where", StringComparison.OrdinalIgnoreCase) ? where : " WHERE " + where;
+            if (!String.IsNullOrEmpty (orderBy))
+                sql += orderBy.TrimStart ().StartsWith ("order by", StringComparison.OrdinalIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
+            if (limit > 0)
+                sql += " LIMIT " + limit;
             return sql;
         }
 
@@ -331,34 +330,31 @@ namespace Massive {
         private dynamic BuildPagedResult(string sql = "", string primaryKeyField = "", string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage = 1, params object[] args)
         {
             dynamic result = new ExpandoObject();
-            var countSQL = "";
-            if (!string.IsNullOrEmpty(sql))
-                countSQL = string.Format("SELECT COUNT({0}) FROM ({1}) AS PagedTable", primaryKeyField, sql);
-            else
-                countSQL = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
-
-            if (String.IsNullOrEmpty(orderBy))
-            {
+            if (String.IsNullOrEmpty(orderBy)) {
                 orderBy = string.IsNullOrEmpty(primaryKeyField) ? PrimaryKeyField : primaryKeyField;
             }
 
             if (!string.IsNullOrEmpty(where))
             {
-                if (!where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase))
+                if (!where.TrimStart().StartsWith("where", StringComparison.CurrentCultureIgnoreCase))
                 {
                     where = " WHERE " + where;
                 }
             }
 
+            var pageStart = (currentPage - 1) * pageSize;
             var query = "";
             if (!string.IsNullOrEmpty(sql))
-                query = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM ({3}) AS PagedTable {4}) AS Paged ", columns, pageSize, orderBy, sql, where);
+                query = string.Format("SELECT {0} FROM ({1}) as Paged {2} ORDER BY {3} LIMIT {4},{5}", columns, sql, where, orderBy, pageStart, pageSize);
             else
-                query = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3} {4}) AS Paged ", columns, pageSize, orderBy, TableName, where);
+                query = string.Format("SELECT {0} FROM {1} {2} ORDER BY {3} LIMIT {4},{5}", columns, TableName, where, orderBy, pageStart, pageSize);
 
-            var pageStart = (currentPage - 1) * pageSize;
-            query += string.Format(" WHERE Row > {0} AND Row <={1}", pageStart, (pageStart + pageSize));
-            countSQL += where;
+            var countSQL = "";
+            if (!string.IsNullOrEmpty(sql))
+                countSQL = string.Format("SELECT COUNT({0}) FROM ({1}) AS PagedTable {2}", primaryKeyField, sql, where);
+            else
+                countSQL = string.Format("SELECT COUNT({0}) FROM {1} {2}", PrimaryKeyField, TableName, where);
+
             result.TotalRecords = Scalar(countSQL, args);
             result.TotalPages = result.TotalRecords / pageSize;
             if (result.TotalRecords % pageSize > 0)
@@ -477,7 +473,7 @@ namespace Massive {
                 sql += string.Format("WHERE {0}=@0", PrimaryKeyField);
                 args = new object[] { key };
             } else if (!string.IsNullOrEmpty(where)) {
-                sql += where.Trim().StartsWith("where", StringComparison.OrdinalIgnoreCase) ? where : "WHERE " + where;
+                sql += where.TrimStart().StartsWith("where", StringComparison.OrdinalIgnoreCase) ? where : "WHERE " + where;
             }
             return CreateCommand(sql, null, args);
         }
@@ -504,7 +500,7 @@ namespace Massive {
                     var cmd = CreateInsertCommand(ex);
                     cmd.Connection = conn;
                     cmd.ExecuteNonQuery();
-                    cmd.CommandText = "SELECT @@IDENTITY as newID";
+                    cmd.CommandText = "SELECT LAST_INSERT_ID()";
                     ex.ID = cmd.ExecuteScalar();
                     Inserted(ex);
                 }
@@ -648,24 +644,23 @@ namespace Massive {
             } else {
 
                 //build the SQL
-                sql = "SELECT TOP 1 " + columns + " FROM " + TableName + where;
+                sql = "SELECT " + columns + " FROM " + TableName + where;
                 var justOne = op.StartsWith("First") || op.StartsWith("Last") || op.StartsWith("Get") || op.StartsWith("Single");
 
                 //Be sure to sort by DESC on the PK (PK Sort is the default)
                 if (op.StartsWith("Last")) {
-                    orderBy = orderBy + " DESC ";
+                    sql += orderBy + " DESC LIMIT 1";
                 } else {
                     //default to multiple
-                    sql = "SELECT " + columns + " FROM " + TableName + where;
+                    sql = "SELECT " + columns + " FROM " + TableName + where + orderBy;
+                    if (justOne)
+                        sql += " LIMIT 1";
                 }
 
-                if (justOne) {
-                    //return a single record
-                    result = Query(sql + orderBy, whereArgs.ToArray()).FirstOrDefault();
-                } else {
-                    //return lots
-                    result = Query(sql + orderBy, whereArgs.ToArray());
-                }
+                if (justOne)
+                    result = Query(sql, whereArgs.ToArray()).FirstOrDefault ();
+                else
+                    result = Query(sql, whereArgs.ToArray());
             }
             return true;
         }
