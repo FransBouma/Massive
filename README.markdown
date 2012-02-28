@@ -135,7 +135,7 @@ foreach(var item in drinks){
 	item.CategoryID = 12;
 }
 //Let's update these in bulk, in a transaction shall we?
-table.Save(drinks);
+table.Save(drinks.ToArray());
 ```
 	
 Named Argument Query Syntax
