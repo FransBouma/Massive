@@ -130,7 +130,7 @@ var table = new Products();
 //I think I might have... yes
 var drinks = table.All("WHERE CategoryID = 8");
 //what we get back here is an IEnumerable < ExpandoObject > - we can go to town
-foreach(var item in drinks){
+foreach(var item in drinks.ToArray()){
 	//turn them into Haack Snacks
 	item.CategoryID = 12;
 }
