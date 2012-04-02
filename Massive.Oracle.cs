@@ -185,7 +185,7 @@ namespace Massive {
         public IEnumerable<dynamic> Schema {
             get {
                 if (_schema == null)
-                    _schema = Query("SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @0", TableName);
+                    _schema = Query("SELECT * FROM USER_TAB_COLUMNS WHERE TABLE_NAME = :0", TableName);
                 return _schema;
             }
         }
