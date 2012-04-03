@@ -126,6 +126,18 @@ namespace Massive {
             else
                 ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
         }
+        public DynamicModel(DbConnectionStringBuilder connectionStringBuilder, string tableName = "",
+            string primaryKeyField = "", string descriptorField = "", string sequence = "")
+        {
+            TableName = tableName == "" ? this.GetType().Name : tableName;
+            PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
+            DescriptorField = descriptorField;
+            
+            _sequence = sequence == "" ? ConfigurationManager.AppSettings["default_seq"] : sequence;
+            _factory = DbProviderFactories.GetFactory("System.Data.OracleClient");
+
+            ConnectionString = connectionStringBuilder.ConnectionString;
+        }
 
         /// <summary>
         /// Creates a new Expando from a Form POST - white listed against the columns in the DB
