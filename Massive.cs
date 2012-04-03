@@ -126,6 +126,21 @@ namespace Massive {
             _factory = DbProviderFactories.GetFactory(_providerName);
             ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
         }
+        protected DynamicModel(DbConnectionStringBuilder connectionStringBuilder, string tableName = "",
+            string primaryKeyField = "", string descriptorField = "")
+        {
+            TableName = tableName == "" ? this.GetType().Name : tableName;
+            PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
+            DescriptorField = descriptorField;
+
+            string _providerName =
+                connectionStringBuilder.ContainsKey("ProviderName")
+                    ? (string) connectionStringBuilder["ProviderName"]
+                    : "System.Data.SqlClient";
+
+            _factory = DbProviderFactories.GetFactory(_providerName);
+            ConnectionString = connectionStringBuilder.ConnectionString;
+        }
 
         /// <summary>
         /// Creates a new Expando from a Form POST - white listed against the columns in the DB
