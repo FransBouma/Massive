@@ -427,9 +427,10 @@ namespace Massive {
             var stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2})";
             result = CreateCommand(stub, null);
             int counter = 0;
-            foreach (var item in settings) {
+            foreach(var item in settings.Where(x=>x.Value != null))
+            {
                 sbKeys.AppendFormat("{0},", item.Key);
-                sbVals.AppendFormat("@{0},", counter.ToString());
+                sbVals.AppendFormat("@{0},", counter);
                 result.AddParam(item.Value);
                 counter++;
             }
