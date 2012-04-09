@@ -113,11 +113,13 @@ namespace Massive {
             dynamic dm = new DynamicModel(connectionStringName);
             return dm;
         }
-        public DynamicModel(string connectionStringName, string tableName = "",
-            string primaryKeyField = "", string descriptorField = "") {
+        public DynamicModel(string connectionStringName, string tableName = "", string primaryKeyField = "", string descriptorField = "", bool primaryKeyIsIdentity = false) 
+        {
             TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
             DescriptorField = descriptorField;
+            PrimaryKeyIsIdentity = primaryKeyIsIdentity;
+            
             var _providerName = "System.Data.SqlClient";
             
             if(ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName != null)
@@ -298,6 +300,9 @@ namespace Massive {
             return result;
         }
         public virtual string TableName { get; set; }
+
+        public virtual bool PrimaryKeyIsIdentity { get; set; }
+
         /// <summary>
         /// Returns all records complying with the passed-in WHERE clause and arguments, 
         /// ordered as specified, limited (TOP) by limit.
@@ -427,7 +432,7 @@ namespace Massive {
             var stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2})";
             result = CreateCommand(stub, null);
             int counter = 0;
-            foreach(var item in settings.Where(x=>x.Value != null))
+            foreach(var item in settings.Where(x=>x.Value != null && !(PrimaryKeyIsIdentity && x.Key.Equals(PrimaryKeyField))))
             {
                 sbKeys.AppendFormat("{0},", item.Key);
                 sbVals.AppendFormat("@{0},", counter);
@@ -518,14 +523,14 @@ namespace Massive {
         /// Updates a record in the database. You can pass in an Anonymous object, an ExpandoObject,
         /// A regular old POCO, or a NameValueCollection from a Request.Form or Request.QueryString
         /// </summary>
-        public virtual int Update(object o, object key) {
+        public virtual int Update(object o, object key = null) {
             var ex = o.ToExpando();
             if (!IsValid(ex)) {
                 throw new InvalidOperationException("Can't Update: " + String.Join("; ", Errors.ToArray()));
             }
             var result = 0;
             if (BeforeSave(ex)) {
-                result = Execute(CreateUpdateCommand(ex, key));
+                result = Execute(CreateUpdateCommand(ex, key ?? GetPrimaryKey(o)));
                 Updated(ex);
             }
             return result;
