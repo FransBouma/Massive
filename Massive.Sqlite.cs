@@ -129,6 +129,15 @@ namespace Massive.SQLite
             ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
             _providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
         }
+        public DynamicModel(DbConnectionStringBuilder connectionStringBuilder, string tableName = "", string primaryKeyField = "")
+        {
+            TableName = tableName == "" ? this.GetType().Name : tableName;
+            PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
+
+            _factory = DbProviderFactories.GetFactory("System.Data.SQLite");
+            
+            ConnectionString = connectionStringBuilder.ConnectionString;
+        }
 
         /// <summary>
         /// Creates a new Expando from a Form POST - white listed against the columns in the DB
