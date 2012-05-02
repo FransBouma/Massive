@@ -428,7 +428,7 @@ namespace Massive {
             result = CreateCommand(stub, null);
             int counter = 0;
             foreach (var item in settings) {
-                sbKeys.AppendFormat("{0},", item.Key);
+                sbKeys.AppendFormat("[{0}],", item.Key);
                 sbVals.AppendFormat("@{0},", counter.ToString());
                 result.AddParam(item.Value);
                 counter++;
@@ -455,7 +455,7 @@ namespace Massive {
                 var val = item.Value;
                 if (!item.Key.Equals(PrimaryKeyField, StringComparison.OrdinalIgnoreCase) && item.Value != null) {
                     result.AddParam(val);
-                    sbKeys.AppendFormat("{0} = @{1}, \r\n", item.Key, counter.ToString());
+                    sbKeys.AppendFormat("[{0}] = @{1}, \r\n", item.Key, counter.ToString());
                     counter++;
                 }
             }
