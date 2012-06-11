@@ -647,25 +647,22 @@ namespace Massive {
                 result = Scalar("SELECT AVG(" + columns + ") FROM " + TableName + where, whereArgs.ToArray());
             } else {
 
-                //build the SQL
-                sql = "SELECT TOP 1 " + columns + " FROM " + TableName + where;
+                //Build the SQL
                 var justOne = op.StartsWith("First") || op.StartsWith("Last") || op.StartsWith("Get") || op.StartsWith("Single");
+                if (justOne) {
+                    sql = "SELECT TOP 1 " + columns + " FROM " + TableName + where; 
+                } else {
+                    sql = "SELECT " + columns + " FROM " + TableName + where;
+                }
 
                 //Be sure to sort by DESC on the PK (PK Sort is the default)
                 if (op.StartsWith("Last")) {
                     orderBy = orderBy + " DESC ";
-                } else {
-                    //default to multiple
-                    sql = "SELECT " + columns + " FROM " + TableName + where;
-                }
+                } 
 
-                if (justOne) {
-                    //return a single record
-                    result = Query(sql + orderBy, whereArgs.ToArray()).FirstOrDefault();
-                } else {
-                    //return lots
-                    result = Query(sql + orderBy, whereArgs.ToArray());
-                }
+                result = justOne 
+                    ? Query(sql + orderBy, whereArgs.ToArray()).ToArray().FirstOrDefault() 
+                    : Query(sql + orderBy, whereArgs.ToArray());
             }
             return true;
         }
