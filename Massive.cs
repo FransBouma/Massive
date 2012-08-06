@@ -211,6 +211,19 @@ namespace Massive {
             result.CommandText = sql;
             if (args.Length > 0) result.AddParams(args);
             return result;
+        }       
+        DbCommand CreateCommand(string sql, DbConnection conn, bool isProc, Dictionary<string, object> namedArgs)
+        {
+            SqlCommand cmd = _factory.CreateCommand() as SqlCommand;
+            cmd.Connection = conn as SqlConnection;
+            cmd.CommandText = sql;
+            foreach(var kvp in namedArgs)
+                cmd.Parameters.AddWithValue(kvp.Key, kvp.Value);
+            if (isProc){
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.Add("@returnValue", SqlDbType.Int).Direction = ParameterDirection.ReturnValue; ;
+            }
+            return cmd;
         }
         /// <summary>
         /// Returns and OpenConnection
@@ -235,20 +248,31 @@ namespace Massive {
         public virtual int Execute(string sql, params object[] args) {
             return Execute(CreateCommand(sql, null, args));
         }
+        public virtual int ExecuteWithReturn(string sql, bool isProc, Dictionary<string, object> namedArgs)
+        {
+            return Execute(CreateCommand(sql, null, isProc, namedArgs));
+        }
         /// <summary>
         /// Executes a series of DBCommands in a transaction
         /// </summary>
         public virtual int Execute(IEnumerable<DbCommand> commands) {
             var result = 0;
             using (var conn = OpenConnection())
-                using (var tx = conn.BeginTransaction()) {
-                    foreach (var cmd in commands) {
-                        cmd.Connection = conn;
-                        cmd.Transaction = tx;
+            using (var tx = conn.BeginTransaction()) {
+                foreach (var cmd in commands) {
+                    cmd.Connection = conn;
+                    cmd.Transaction = tx;
+                    if (cmd.CommandType == CommandType.StoredProcedure){
+                        cmd.ExecuteNonQuery();
+                        if (cmd.Parameters["@returnValue"].Value != null)
+                            result += Int32.Parse(cmd.Parameters["@returnValue"].Value.ToString());
+                        else
+                            result += -1;
+                    } else
                         result += cmd.ExecuteNonQuery();
-                    }
-                    tx.Commit();
                 }
+                tx.Commit();
+            }
             return result;
         }
         public string PrimaryKeyField { get; set; }
