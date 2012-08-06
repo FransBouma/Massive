@@ -110,11 +110,10 @@ namespace Massive {
             TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
             DescriptorField = descriptorField;
-            var _providerName = "System.Data.SqlClient";            
-            if(ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName != null)
-                _providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;            
-            _factory = DbProviderFactories.GetFactory(_providerName);
-            ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
+            var _providerName = "System.Data.SqlClient";     
+            var settings = ConfigurationManager.ConnectionStrings[connectionStringName];
+            ConnectionString = settings == null ? connectionStringName : settings.ConnectionString;
+            _factory = DbProviderFactories.GetFactory(settings == null ? _providerName : settings.ProviderName);
         }
         /// <summary>
         /// Creates a new Expando from a Form POST - white listed against the columns in the DB
