@@ -4,13 +4,13 @@ using System.Collections.Specialized;
 using System.Configuration;
 using System.Data;
 using System.Data.Common;
+using System.Data.Sql;
 using System.Dynamic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Data.SQLite;
 
-namespace Massive.SQLite
+namespace Voith.Cdb.Database.DBSync.Massive.SQL
 {
     public static class ObjectExtensions
     {
@@ -24,6 +24,7 @@ namespace Massive.SQLite
                 AddParam(cmd, item);
             }
         }
+
         /// <summary>
         /// Extension for adding single parameter
         /// </summary>
@@ -57,6 +58,7 @@ namespace Massive.SQLite
             }
             cmd.Parameters.Add(p);
         }
+
         /// <summary>
         /// Turns an IDataReader to a Dynamic list of things
         /// </summary>
@@ -69,6 +71,7 @@ namespace Massive.SQLite
             }
             return result;
         }
+
         public static dynamic RecordToExpando(this IDataReader rdr)
         {
             dynamic e = new ExpandoObject();
@@ -77,6 +80,7 @@ namespace Massive.SQLite
                 d.Add(rdr.GetName(i), DBNull.Value.Equals(rdr[i]) ? null : rdr[i]);
             return e;
         }
+
         /// <summary>
         /// Turns the object into an ExpandoObject
         /// </summary>
@@ -100,6 +104,7 @@ namespace Massive.SQLite
             }
             return result;
         }
+
         /// <summary>
         /// Turns the object into a Dictionary
         /// </summary>
@@ -107,7 +112,58 @@ namespace Massive.SQLite
         {
             return (IDictionary<string, object>)thingy.ToExpando();
         }
+
+        /// <summary>
+        /// Extension method to convert dynamic data to a DataTable. Useful for databinding.
+        /// </summary>
+        /// <param name="items"></param>
+        /// <returns>A DataTable with the copied dynamic data.</returns>
+        public static DataTable ToDataTable(this IEnumerable<dynamic> items, string tableName = "Table1")
+        {
+            var data = items.ToArray();
+            if (data.Count() == 0) return null;
+
+            var dt = new DataTable(tableName);
+            foreach (var key in ((IDictionary<string, object>)data[0]).Keys)
+            {
+                dt.Columns.Add(key);
+            }
+            foreach (var d in data)
+            {
+                dt.Rows.Add(((IDictionary<string, object>)d).Values.ToArray());
+            }
+            return dt;
+        }
+
+        /// <summary>
+        /// Extention method to convert dymanic data to datatable
+        /// </summary>
+        /// <param name="table"></param>
+        /// <returns></returns>
+        public static IEnumerable<dynamic> AsDynamicEnumerable(this DataTable table)
+        {
+            // Validate argument here..
+
+            return table.AsEnumerable().Select(row => new DynamicRow(row));
+        }
+
+        private sealed class DynamicRow : DynamicObject
+        {
+            private readonly DataRow _row;
+
+            internal DynamicRow(DataRow row) { _row = row; }
+
+            // Interprets a member-access as an indexer-access on the
+            // contained DataRow.
+            public override bool TryGetMember(GetMemberBinder binder, out object result)
+            {
+                var retVal = _row.Table.Columns.Contains(binder.Name);
+                result = retVal ? _row[binder.Name] : null;
+                return retVal;
+            }
+        }
     }
+
     /// <summary>
     /// A class that wraps your database table in Dynamic Funtime
     /// </summary>
@@ -115,16 +171,18 @@ namespace Massive.SQLite
     {
         DbProviderFactory _factory;
         string ConnectionString;
+
         public static DynamicModel Open(string connectionStringName)
         {
             dynamic dm = new DynamicModel(connectionStringName);
             return dm;
         }
+
         public DynamicModel(string connectionStringName, string tableName = "", string primaryKeyField = "")
         {
             TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
-            var _providerName = "System.Data.SQLite";
+            var _providerName = "System.Data.SqlClient";
             _factory = DbProviderFactories.GetFactory(_providerName);
             ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
             _providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
@@ -157,6 +215,7 @@ namespace Massive.SQLite
             }
             return result;
         }
+
         /// <summary>
         /// Gets a default value for the column
         /// </summary>
@@ -182,6 +241,7 @@ namespace Massive.SQLite
             }
             return result;
         }
+
         /// <summary>
         /// Creates an empty Expando set with defaults from the DB
         /// </summary>
@@ -200,10 +260,12 @@ namespace Massive.SQLite
                 return result;
             }
         }
+
         /// <summary>
         /// List out all the schema bits for use with ... whatever
         /// </summary>
         IEnumerable<dynamic> _schema;
+
         public IEnumerable<dynamic> Schema
         {
             get
@@ -241,7 +303,6 @@ namespace Massive.SQLite
                 }
             }
         }
-      
 
         public virtual IEnumerable<dynamic> Query(string sql, DbConnection connection, params object[] args)
         {
@@ -253,6 +314,7 @@ namespace Massive.SQLite
                 }
             }
         }
+
         /// <summary>
         /// Returns a single result
         /// </summary>
@@ -265,10 +327,11 @@ namespace Massive.SQLite
             }
             return result;
         }
+
         /// <summary>
         /// Creates a DBCommand that you can use for loving your database.
         /// </summary>
-        DbCommand CreateCommand(string sql, DbConnection conn, params object[] args)
+        private DbCommand CreateCommand(string sql, DbConnection conn, params object[] args)
         {
             var result = _factory.CreateCommand();
             result.Connection = conn;
@@ -277,6 +340,7 @@ namespace Massive.SQLite
                 result.AddParams(args);
             return result;
         }
+
         /// <summary>
         /// Returns and OpenConnection
         /// </summary>
@@ -287,6 +351,7 @@ namespace Massive.SQLite
             result.Open();
             return result;
         }
+
         /// <summary>
         /// Builds a set of Insert and Update commands based on the passed-on objects.
         /// These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
@@ -308,6 +373,7 @@ namespace Massive.SQLite
             }
             return commands;
         }
+
         /// <summary>
         /// Executes a set of objects as Insert or Update commands based on their property settings, within a transaction.
         /// These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
@@ -328,6 +394,7 @@ namespace Massive.SQLite
         {
             return Execute(CreateCommand(sql, null, args));
         }
+
         /// <summary>
         /// Executes a series of DBCommands in a transaction
         /// </summary>
@@ -349,15 +416,18 @@ namespace Massive.SQLite
             }
             return result;
         }
+
         public virtual string PrimaryKeyField { get; set; }
+
         /// <summary>
-        /// Conventionally introspects the object passed in for a field that 
+        /// Conventionally introspects the object passed in for a field that
         /// looks like a PK. If you've named your PrimaryKeyField, this becomes easy
         /// </summary>
         public virtual bool HasPrimaryKey(object o)
         {
             return o.ToDictionary().ContainsKey(PrimaryKeyField);
         }
+
         /// <summary>
         /// If the object passed in has a property with the same name as your PrimaryKeyField
         /// it is returned here.
@@ -368,7 +438,9 @@ namespace Massive.SQLite
             o.ToDictionary().TryGetValue(PrimaryKeyField, out result);
             return result;
         }
+
         public virtual string TableName { get; set; }
+
         /// <summary>
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
         /// </summary>
@@ -399,6 +471,7 @@ namespace Massive.SQLite
             else throw new InvalidOperationException("Can't parse this object to the database - there are no properties set");
             return result;
         }
+
         /// <summary>
         /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
         /// </summary>
@@ -432,6 +505,7 @@ namespace Massive.SQLite
             else throw new InvalidOperationException("No parsable object was sent in - could not divine any name/value pairs");
             return result;
         }
+
         /// <summary>
         /// Removes one or more records from the DB according to the passed-in WHERE
         /// </summary>
@@ -449,6 +523,7 @@ namespace Massive.SQLite
             }
             return CreateCommand(sql, null, args);
         }
+
         /// <summary>
         /// Adds a record to the database. You can pass in an Anonymous object, an ExpandoObject,
         /// A regular old POCO, or a NameValueColletion from a Request.Form or Request.QueryString
@@ -466,6 +541,7 @@ namespace Massive.SQLite
             }
             return result;
         }
+
         /// <summary>
         /// Updates a record in the database. You can pass in an Anonymous object, an ExpandoObject,
         /// A regular old POCO, or a NameValueCollection from a Request.Form or Request.QueryString
@@ -474,6 +550,7 @@ namespace Massive.SQLite
         {
             return Execute(CreateUpdateCommand(o, key));
         }
+
         /// <summary>
         /// Removes one or more records from the DB according to the passed-in WHERE
         /// </summary>
@@ -481,8 +558,9 @@ namespace Massive.SQLite
         {
             return Execute(CreateDeleteCommand(where: where, key: key, args: args));
         }
+
         /// <summary>
-        /// Returns all records complying with the passed-in WHERE clause and arguments, 
+        /// Returns all records complying with the passed-in WHERE clause and arguments,
         /// ordered as specified, limited (TOP) by limit.
         /// </summary>
         public virtual IEnumerable<dynamic> All(string where = "", string orderBy = "", int limit = 0, string columns = "*", params object[] args)
@@ -490,6 +568,7 @@ namespace Massive.SQLite
             string sql = BuildSelect(where, orderBy, limit);
             return Query(string.Format(sql, columns, TableName), args);
         }
+
         private static string BuildSelect(string where, string orderBy, int limit)
         {
             string sql = limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1} " : "SELECT {0} FROM {1} ";
@@ -499,7 +578,7 @@ namespace Massive.SQLite
                 sql += orderBy.Trim().StartsWith("order by", StringComparison.CurrentCultureIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
             return sql;
         }
-       
+
         /// <summary>
         /// Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords.
         /// </summary>
@@ -519,7 +598,7 @@ namespace Massive.SQLite
             }
             var sql = string.Format("select {0} FROM {3} {4} ORDER BY {2} ", columns, pageSize, orderBy, TableName, where);
             var pageStart = (currentPage - 1) * pageSize;
-            sql += string.Format(" LIMIT {0},{1}",pageStart, pageSize);
+            sql += string.Format(" LIMIT {0},{1}", pageStart, pageSize);
             countSQL += where;
             result.TotalRecords = Scalar(countSQL, args);
             result.TotalPages = result.TotalRecords / pageSize;
@@ -528,6 +607,7 @@ namespace Massive.SQLite
             result.Items = Query(string.Format(sql, columns, TableName), args);
             return result;
         }
+
         /// <summary>
         /// Returns a single row from the database
         /// </summary>
@@ -536,6 +616,7 @@ namespace Massive.SQLite
             var sql = string.Format("SELECT * FROM {0} WHERE {1}", TableName, where);
             return Query(sql, args).FirstOrDefault();
         }
+
         /// <summary>
         /// Returns a single row from the database
         /// </summary>
@@ -544,6 +625,7 @@ namespace Massive.SQLite
             var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", columns, TableName, PrimaryKeyField);
             return Query(sql, key).FirstOrDefault();
         }
+
         /// <summary>
         /// A helpful query tool
         /// </summary>
@@ -559,7 +641,6 @@ namespace Massive.SQLite
                 throw new InvalidOperationException("Please use named arguments for this type of query - the column name, orderby, columns, etc");
             }
 
-
             //first should be "FindBy, Last, Single, First"
             var op = binder.Name;
             var columns = " * ";
@@ -570,7 +651,6 @@ namespace Massive.SQLite
             //loop the named args - see if we have order, columns and constraints
             if (info.ArgumentNames.Count > 0)
             {
-
                 for (int i = 0; i < args.Length; i++)
                 {
                     var name = info.ArgumentNames[i].ToLower();
