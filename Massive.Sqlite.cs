@@ -125,9 +125,9 @@ namespace Massive.SQLite
             TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
             var _providerName = "System.Data.SQLite";
-            _factory = DbProviderFactories.GetFactory(_providerName);
-            ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
-            _providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
+            var settings = ConfigurationManager.ConnectionStrings[connectionStringName];
+            ConnectionString = settings == null ? connectionStringName : settings.ConnectionString;
+            _factory = DbProviderFactories.GetFactory(settings == null ? _providerName : settings.ProviderName);
         }
 
         /// <summary>
