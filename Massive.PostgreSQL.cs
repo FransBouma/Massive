@@ -597,8 +597,7 @@ namespace Massive.PostgreSQL
                 {
                     var cmd = CreateInsertCommand(ex);
                     cmd.Connection = conn;
-                    cmd.ExecuteNonQuery();
-                    cmd.CommandText = " returning {0} as newid ";
+                    cmd.CommandText += String.Format(" returning {0} as newid ", PrimaryKeyField);
                     ex.ID = cmd.ExecuteScalar();
                     Inserted(ex);
                 }
