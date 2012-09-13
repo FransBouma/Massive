@@ -8,7 +8,7 @@ using System.Dynamic;
 using System.Linq;
 using System.Text;
 
-namespace Massive {
+namespace Massive.Oracle {
     public static class ObjectExtensions {
         /// <summary>
         /// Extension method for adding in a bunch of parameters
