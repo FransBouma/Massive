@@ -107,6 +107,52 @@ namespace Massive.SQLite
         {
             return (IDictionary<string, object>)thingy.ToExpando();
         }
+        
+        /// <summary>
+        /// Extension method to convert dynamic data to a DataTable. Useful for databinding.
+        /// </summary>
+        /// <param name="items"></param>
+        /// <returns>A DataTable with the copied dynamic data.</returns>
+        public static DataTable ToDataTable(this IEnumerable<dynamic> items, string tableName = "Table1")
+        {
+            var data = items.ToArray();
+            if (data.Count() == 0) return null;
+
+            var dt = new DataTable(tableName);
+            foreach (var key in ((IDictionary<string, object>)data[0]).Keys)
+            {
+                dt.Columns.Add(key);
+            }
+            foreach (var d in data)
+            {
+                dt.Rows.Add(((IDictionary<string, object>)d).Values.ToArray());
+            }
+            return dt;
+        }
+
+        /// <summary>
+        /// Extention method to convert dymanic data to datatable
+        /// </summary>
+        /// <param name="table"></param>
+        /// <returns></returns>
+        public static IEnumerable<dynamic> AsDynamicEnumerable(this DataTable table)
+        {
+            return table.AsEnumerable().Select(row => new DynamicRow(row));
+        }
+
+        private sealed class DynamicRow : DynamicObject
+        {
+            private readonly DataRow _row;
+
+            internal DynamicRow(DataRow row) { _row = row; }
+
+           public override bool TryGetMember(GetMemberBinder binder, out object result)
+            {
+                var retVal = _row.Table.Columns.Contains(binder.Name);
+                result = retVal ? _row[binder.Name] : null;
+                return retVal;
+            }
+        }
     }
     /// <summary>
     /// A class that wraps your database table in Dynamic Funtime
