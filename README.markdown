@@ -15,6 +15,15 @@ How Do You Use It?
 Massive is a "wrapper" for your DB tables and uses System.Dynamic extensively. If you try to use this with C# 3.5 or below, it will explode and you will be sad. Me too honestly - I like how this doesn't require any DLLs other than what's in the GAC. Yippee.
 
  * Get a Database. Northwind will work nicely. Add a connection to your database in your web.config (or app.config). Don't forget the providerName! If you don't know what that is - just add providerName = 'System.Data.SqlClient' right after the whole connectionString stuff.
+ * install the mysql library with NuGet "install-package mysql.data"
+ * add a provider name to your app/web.config
+		  
+		<system.data>
+		    <DbProviderFactories>
+		      <add name="MySQL Data Provider" invariant="MySql.Data.MySqlClient" description=".Net Framework Data Provider for MySQL" type="MySql.Data.MySqlClient.MySqlClientFactory, MySql.Data, Version=6.5.4.0, Culture=neutral, PublicKeyToken=c5687fc88969c44d" />
+		    </DbProviderFactories>
+		  </system.data>
+
  * Create a class that wraps a table. You can call it whatever you like, but if you want to be cool just name it the same as your table.
  * Query away and have fun
 
