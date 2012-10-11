@@ -27,14 +27,12 @@ namespace Massive {
         var list = new List<T>(expandos.Count());
 
         var props = typeof(T).GetProperties();
-    
+
+        IDictionary<string, object> kv = null;
+        //need to iterate and Convert to Dictionary 
         foreach (var expando in expandos) {
           var obj = Activator.CreateInstance<T>();
-          if (expando.GetType() != typeof(ExpandoObject)) {
-            // not an expando object - continue to the next one in the list
-            continue;
-          }
-          var kv = ((IDictionary<string, object>)expando);
+           kv = ((object)expando).ToDictionary();
 
           foreach (var p in props) {
             if (kv.ContainsKey(p.Name)) {
