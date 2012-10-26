@@ -13,9 +13,9 @@ namespace Massive {
   public static class ObjectExtensions {
 
     public static T Cast<T>(this ExpandoObject data) {
+
       var obj = Activator.CreateInstance<T>();
       if (data != null) {
-
         return obj;
       }
       return obj;
@@ -32,7 +32,7 @@ namespace Massive {
         //need to iterate and Convert to Dictionary 
         foreach (var expando in expandos) {
           var obj = Activator.CreateInstance<T>();
-           kv = ((object)expando).ToDictionary();
+          kv = ((object)expando).ToDictionary();
 
           foreach (var p in props) {
             if (kv.ContainsKey(p.Name)) {
@@ -47,6 +47,7 @@ namespace Massive {
 
       return null;
     }
+
 
     /// <summary>
     /// Returns an empty data table based on the underlying table
@@ -145,6 +146,38 @@ namespace Massive {
       }
     }
 
+    /// <summary>
+    /// Converts a list of dynamics into a DataTable
+    /// </summary>
+    /// <param name="expandos"></param>
+    /// <returns></returns>
+    public static DataTable ToDataTable(this IEnumerable<dynamic> expandos) {
+      var dt = new DataTable();
+
+      if (expandos != null && expandos.Count() > 0) {
+        foreach (var expando in expandos) {
+          IDictionary<string, object> dataDictionary = null;
+
+          if (expando is NameValueCollection || expando is ExpandoObject) {
+            dataDictionary = (IDictionary<string, object>)expando;
+          } else {
+            dataDictionary = ((object)expando).ToDictionary();
+          }
+
+          var row = dt.NewRow();
+          foreach (var key in dataDictionary.Keys) {
+            if (!dt.Columns.Contains(key)) {
+              dt.Columns.Add(key);
+            }
+            row[key] = dataDictionary[key] != null ? dataDictionary[key] : DBNull.Value;
+          }
+
+          dt.Rows.Add(row);
+        }
+
+      }
+      return dt;
+    }
 
     /// <summary>
     /// Extension method for adding in a bunch of parameters
