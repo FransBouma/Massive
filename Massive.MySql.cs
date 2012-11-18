@@ -171,6 +171,17 @@ namespace Massive {
             }
         }
 
+        
+        /// <summary>
+        /// Enumerates the reader yielding the result - thanks to Jeroen Haegebaert
+        /// </summary>
+        public virtual object QueryScalar(string sql, params object[] args) {
+            using (var conn = OpenConnection()) {
+                var rdr = CreateCommand(sql, conn, args).ExecuteScalar();
+                return rdr;
+            }
+        }
+
         /// <summary>
         /// Enumerates the reader yielding the result - thanks to Jeroen Haegebaert
         /// </summary>
@@ -404,6 +415,27 @@ namespace Massive {
         public virtual IEnumerable<dynamic> All(string where = "", string orderBy = "", int limit = 0, string columns = "*", params object[] args) {
             string sql = BuildSelect(where, orderBy, limit);
             return Query(string.Format(sql, columns, TableName), args);
+        }
+
+        /// <summary>
+        /// Returns the count from this table, using optional where statement
+        /// </summary>
+        /// <param name="where">query parameters (eg: "id>=100")</param>
+        /// <param name="args"></param>
+        /// <returns></returns>
+        public int Count(string where = "", params object[] args)
+        {
+            var sql = BuildCount(where);
+            var ob = QueryScalar(string.Format(sql, TableName), args);
+            return int.Parse(ob.ToString());
+        }
+
+        private static string BuildCount(string where)
+        {
+            var sql = "SELECT Count(*) FROM {0} " ;
+            if (!string.IsNullOrEmpty(where))
+                sql += where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase) ? where : "WHERE " + where;
+            return sql;
         }
         private static string BuildSelect(string where, string orderBy, int limit) {
             string sql = limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1} " : "SELECT {0} FROM {1} ";
