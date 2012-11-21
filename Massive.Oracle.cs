@@ -108,23 +108,33 @@ namespace Massive.Oracle {
         string ConnectionString;
         string _sequence;
 
-        public static DynamicModel Open(string connectionStringName)
-        {
+        public static DynamicModel Open(string connectionStringName) {
             dynamic dm = new DynamicModel(connectionStringName);
             return dm;
         }
 
         public DynamicModel(string connectionStringName, string tableName = "",
             string primaryKeyField = "", string descriptorField = "", string sequence = "") {
+
             TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
             DescriptorField = descriptorField;
             _sequence = sequence == "" ? ConfigurationManager.AppSettings["default_seq"] : sequence;
-            _factory = DbProviderFactories.GetFactory("System.Data.OracleClient");
-            if (ConfigurationManager.ConnectionStrings[connectionStringName] == null)
+
+            var _providerName = "System.Data.OracleClient";
+            var _connectionStringKey = ConfigurationManager.ConnectionStrings[connectionStringName];
+
+            if (_connectionStringKey == null) {
                 ConnectionString = connectionStringName;
-            else
-                ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
+            } else {
+                ConnectionString = _connectionStringKey.ConnectionString;
+                if (!string.IsNullOrEmpty(_connectionStringKey.ProviderName)) {
+                    _providerName = _connectionStringKey.ProviderName;
+                }
+            }
+
+            _factory = DbProviderFactories.GetFactory(_providerName);
+
         }
 
         /// <summary>
