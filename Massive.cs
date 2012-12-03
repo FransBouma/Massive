@@ -585,8 +585,8 @@ namespace Massive {
         public int Count() {
             return Count(TableName);
         }
-        public int Count(string tableName, string where="") {
-            return (int)Scalar("SELECT COUNT(*) FROM " + tableName+" "+where);
+        public int Count(string tableName, string where="", params object[] args) {
+            return (int)Scalar("SELECT COUNT(*) FROM " + tableName+" "+ where, args);
         }
 
         /// <summary>
