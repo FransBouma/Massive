@@ -87,6 +87,34 @@ namespace Massive {
         public static IDictionary<string, object> ToDictionary(this object thingy) {
             return (IDictionary<string, object>)thingy.ToExpando();
         }
+
+        public static IEnumerable<T> Cast<T>(this IEnumerable<dynamic> expandos) {
+
+            if (expandos != null && expandos.Count() > 0) {
+                var list = new List<T>(expandos.Count());
+
+                var props = typeof(T).GetProperties();
+
+                IDictionary<string, object> kv = null;
+                //need to iterate and Convert to Dictionary 
+                foreach (var expando in expandos) {
+                    var obj = Activator.CreateInstance<T>();
+                    kv = ((object)expando).ToDictionary();
+
+                    foreach (var p in props) {
+                        if (kv.ContainsKey(p.Name)) {
+                            p.SetValue(obj, kv[p.Name], null);
+                        }
+                    }
+
+                    list.Add(obj);
+                }
+                return list;
+            }
+
+            return null;
+        }
+
     }
 
     /// <summary>
