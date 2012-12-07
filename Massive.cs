@@ -115,6 +115,129 @@ namespace Massive {
             return null;
         }
 
+        #region Conversion to DataTable
+
+        /// <summary>
+        /// Returns an empty data table based on the underlying table
+        /// </summary>
+        /// <param name="model"></param>
+        /// <returns></returns>
+        public static DataTable ToDataTable(this DynamicModel model) {
+            var missingTable = "Model must point to valid underlying table for bulk inserts";
+            if (model == null || string.IsNullOrWhiteSpace(model.TableName) || model.Schema.Count() == 0) {
+                throw new Exception(missingTable);
+            }
+
+            var schema = model.Schema;
+
+            // if we have made it this far then we should have a valid table name attached to the first
+            // item in the schema
+            var dataTable = new DataTable(model.TableName);
+            foreach (var item in schema) {
+                dataTable.Columns.Add(new DataColumn(item.COLUMN_NAME, GetDBType(item.DATA_TYPE)));
+            }
+            return dataTable;
+        }
+
+
+        /// <summary>
+        /// Converts a list of objects to a data table representing the underlying database table
+        /// Null objects are mapped to DBNull.Value as required by the DataTable object 
+        /// </summary>
+        /// <param name="model">DynamicModel object with TableName property mapped correctly</param>
+        /// <param name="data">List of objects that need to be mapped to the DataTable</param>
+        /// <returns></returns>
+        public static DataTable ToDataTable(this DynamicModel model, IEnumerable<object> data) {
+            var dataTable = model.ToDataTable();
+
+            foreach (var item in data) {
+                IDictionary<string, object> dataDictionary = null;
+                if (item is NameValueCollection || item is ExpandoObject) {
+                    dataDictionary = (IDictionary<string, object>)item;
+                } else {
+                    dataDictionary = item.ToDictionary();
+                }
+                var keys = dataDictionary.Keys;
+                var row = dataTable.NewRow();
+                foreach (var key in keys) {
+                    row[key] = dataDictionary[key] != null ? dataDictionary[key] : DBNull.Value;
+                }
+                dataTable.Rows.Add(row);
+            }
+
+            return dataTable;
+        }
+
+
+
+        /// <summary>
+        /// Converts a list of dynamics into a DataTable
+        /// </summary>
+        /// <param name="expandos"></param>
+        /// <returns></returns>
+        public static DataTable ToDataTable(this IEnumerable<dynamic> expandos) {
+            var dt = new DataTable();
+
+            if (expandos != null && expandos.Count() > 0) {
+                foreach (var expando in expandos) {
+                    IDictionary<string, object> dataDictionary = null;
+
+                    if (expando is NameValueCollection || expando is ExpandoObject) {
+                        dataDictionary = (IDictionary<string, object>)expando;
+                    } else {
+                        dataDictionary = ((object)expando).ToDictionary();
+                    }
+
+                    var row = dt.NewRow();
+                    foreach (var key in dataDictionary.Keys) {
+                        if (!dt.Columns.Contains(key)) {
+                            dt.Columns.Add(key);
+                        }
+                        row[key] = dataDictionary[key] != null ? dataDictionary[key] : DBNull.Value;
+                    }
+
+                    dt.Rows.Add(row);
+                }
+
+            }
+            return dt;
+        }
+
+
+        // there could be more data types but these are the ones used the most
+        private static Type GetDBType(string dataType) {
+            if (dataType == null) {
+                throw new Exception("Must be a valid underlying data type");
+            }
+            switch (dataType) {
+                case "varchar":
+                    return typeof(string);
+                case "char":
+                    return typeof(string);
+                case "int":
+                    return typeof(int);
+                case "bigint":
+                    return typeof(long);
+                case "smallint":
+                    return typeof(short);
+                case "decimal":
+                    return typeof(decimal);
+                case "datetime":
+                    return typeof(DateTime);
+                case "bit":
+                    return typeof(bool);
+                case "varbinary":
+                    return typeof(byte[]);
+                case "uniqueidentifier":
+                    return typeof(Guid);
+                default:
+                    return typeof(object);
+            }
+
+        }
+
+
+        #endregion
     }
 
     /// <summary>
