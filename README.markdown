@@ -241,4 +241,56 @@ The callbacks you can use are:
  * BeforeDelete
  * BeforeSave
 
+Converting to DataTable
+-----------------------
+Let's say you want to convert your data into a DataTable for legacy purposes.  It is as easy as calling a method on your model class:
+
+```csharp
+	// load your underlying model and pass in the dynamic collection
+	var model = new DynamicModel(_connectionString, "Employee");
+	var list = model.All();
+	var dt = model.ToDataTable(list);
+```
+
+
+Converting to a concrete object collection
+------------------------------------------
+You're living happily in your dynamically Massive world till your architecht gets a hold of your code and vehemently objects to the dynamic collection that you're passing around for fun and games.  He wants it converted to the Employee object.  Fear not as there's an easy way out:
+```csharp
+	// Let's say you have an Employee class that looks like this
+	class Employee  {
+		public string LastName { get; set; }
+		public string FirstName { get; set; }
+		public DateTime HireDate { get; set; }
+		public int EmployeeId { get; set; }
+	}
+
+	// You have employee data in dynamic collection
+	var list = new DynamicModel(_connectionString, "Employee").All();
+
+	// convert the list to IEnumerable<Employee>
+	var employees = list.Cast<Employee>();
+```
+
+Bulk Inserts
+------------
+You're sitting in a meeting and your boss tells you that you'll be getting a xml file to load into the database.  You think about all the possible ways you could load the data into the database but they all seem slow compared to the native bulk insert capability.  And of course dynamics is how you started coding it begin with:
+
+```csharp
+
+	// data loaded from an external source
+	var list = new List<dynamic>();
+	for (int i = 0; i < 1000; i++)
+	{
+		list.Add(new {
+			LastName = "Last " + i,
+			FirstName = "First " + i,
+			HireDate = DateTime.Now 
+		});
+	}
+
+	// model provides a method to do bulk inserts (SQL Server only)
+	new DynamicModel(_connectionString, "Employee").BulkInsert(list);
+
+```
 
