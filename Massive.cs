@@ -613,8 +613,8 @@ namespace Massive {
             if (info.ArgumentNames.Count > 0) {
 
                 for (int i = 0; i < args.Length; i++) {
-                    var name = info.ArgumentNames[i].ToLower();
-                    switch (name) {
+                    var name = info.ArgumentNames[i];
+                    switch (name.ToLower()) {
                         case "orderby":
                             orderBy = " ORDER BY " + args[i];
                             break;
