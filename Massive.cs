@@ -229,6 +229,23 @@ namespace Massive {
             return result;
         }
         /// <summary>
+        /// Creates a DBCommand that you can use for loving your database.
+        /// </summary>
+        DbCommand CreateCommand(string sql, DbConnection conn, Dictionary<string, object> namedArgs = null, bool isProc = false) {
+            // Need a SqlCommand for named param support and SProc support
+            SqlCommand cmd = _factory.CreateCommand() as SqlCommand;
+            cmd.Connection = conn as SqlConnection;
+            cmd.CommandText = sql;
+            if (namedArgs != null)
+                foreach (var kvp in namedArgs)
+                    cmd.Parameters.AddWithValue(kvp.Key, kvp.Value);
+            if (isProc) {
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.Add("@returnValue", SqlDbType.Int).Direction = ParameterDirection.ReturnValue; ;
+            }
+            return cmd;
+        }
+        /// <summary>
         /// Returns and OpenConnection
         /// </summary>
         public virtual DbConnection OpenConnection() {
@@ -254,13 +271,15 @@ namespace Massive {
             return commands;
         }
 
-
         public virtual int Execute(DbCommand command) {
             return Execute(new DbCommand[] { command });
         }
 
         public virtual int Execute(string sql, params object[] args) {
             return Execute(CreateCommand(sql, null, args));
+        }
+        public virtual int Execute(string sql, Dictionary<string, object> namedArgs = null, bool isProc = false) {
+            return Execute(CreateCommand(sql, null, namedArgs, isProc));
         }
         /// <summary>
         /// Executes a series of DBCommands in a transaction
@@ -272,7 +291,14 @@ namespace Massive {
                     foreach (var cmd in commands) {
                         cmd.Connection = conn;
                         cmd.Transaction = tx;
-                        result += cmd.ExecuteNonQuery();
+                        if (cmd.CommandType == CommandType.StoredProcedure) {
+                            cmd.ExecuteNonQuery();
+                            if (cmd.Parameters["@returnValue"].Value != null)
+                                result += Int32.Parse(cmd.Parameters["@returnValue"].Value.ToString());
+                            else
+                                result += -1;
+                        } else
+                            result += cmd.ExecuteNonQuery();
                     }
                     tx.Commit();
                 }
