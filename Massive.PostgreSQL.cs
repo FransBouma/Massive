@@ -664,7 +664,7 @@ namespace Massive.PostgreSQL
         {
             if (value == null)
                 Errors.Add(message);
-            if (String.IsNullOrEmpty(value.ToString()))
+            else if (String.IsNullOrEmpty(value.ToString()))
                 Errors.Add(message);
         }
         //fun methods
@@ -679,8 +679,10 @@ namespace Massive.PostgreSQL
         }
         public virtual void ValidateIsCurrency(object value, string message = "Should be money")
         {
-            if (value == null)
+            if (value == null) {
                 Errors.Add(message);
+                return;
+            }
             decimal val = decimal.MinValue;
             decimal.TryParse(value.ToString(), out val);
             if (val == decimal.MinValue)
