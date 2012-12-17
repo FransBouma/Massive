@@ -204,10 +204,10 @@ namespace Massive.Oracle {
         /// Enumerates the reader yielding the result - thanks to Jeroen Haegebaert
         /// </summary>
         public virtual IEnumerable<dynamic> Query(string sql, params object[] args) {
-            using (var conn = OpenConnection()) {
-                var rdr = CreateCommand(sql, conn, args).ExecuteReader();
+            using (var conn = OpenConnection()) 
+            using (var rdr = CreateCommand(sql, conn, args).ExecuteReader()) {
                 while (rdr.Read()) {
-                    yield return rdr.RecordToExpando(); ;
+                    yield return rdr.RecordToExpando();
                 }
             }
         }
