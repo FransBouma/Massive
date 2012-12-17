@@ -108,24 +108,24 @@ namespace Massive {
     /// A class that wraps your database table in Dynamic Funtime
     /// </summary>
     public class DynamicModel : DynamicObject {
-        private const string DefaultProviderName = "System.Data.SqlClient";
-        private readonly DbProviderFactory _factory;
-        private readonly string _connectionString;
-
-        public static DynamicModel Open(string connectionStringOrName) {
-            dynamic dm = new DynamicModel(connectionStringOrName);
+        DbProviderFactory _factory;
+        string ConnectionString;
+        public static DynamicModel Open(string connectionStringName) {
+            dynamic dm = new DynamicModel(connectionStringName);
             return dm;
         }
-
-        public DynamicModel(string connectionStringOrName, string tableName = null, 
-            string primaryKeyField = null, string descriptorField = null) {
-            TableName = string.IsNullOrEmpty(tableName) ? GetType().Name : tableName;
+        public DynamicModel(string connectionStringName, string tableName = "",
+            string primaryKeyField = "", string descriptorField = "") {
+            TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
-            DescriptorField = descriptorField ?? string.Empty;
+            DescriptorField = descriptorField;
+            var _providerName = "System.Data.SqlClient";
             
-            ConnectionStringSettings settings = ConfigurationManager.ConnectionStrings[connectionStringOrName];
-            _connectionString = settings == null ? connectionStringOrName : settings.ConnectionString;
-            _factory = DbProviderFactories.GetFactory(settings == null ? DefaultProviderName : settings.ProviderName);
+            if(ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName != null)
+                _providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
+            
+            _factory = DbProviderFactories.GetFactory(_providerName);
+            ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
         }
 
         /// <summary>
@@ -235,7 +235,7 @@ namespace Massive {
         /// </summary>
         public virtual DbConnection OpenConnection() {
             var result = _factory.CreateConnection();
-            result.ConnectionString = _connectionString;
+            result.ConnectionString = ConnectionString;
             result.Open();
             return result;
         }
