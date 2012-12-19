@@ -104,37 +104,25 @@ namespace Massive.Oracle {
     /// A class that wraps your database table in Dynamic Funtime
     /// </summary>
     public class DynamicModel : DynamicObject {
-        DbProviderFactory _factory;
-        string ConnectionString;
+        private const string DefaultProviderName = "System.Data.OracleClient";
+        private readonly DbProviderFactory _factory;
+        private readonly string _connectionString;
         string _sequence;
-
-        public static DynamicModel Open(string connectionStringName) {
-            dynamic dm = new DynamicModel(connectionStringName);
+        public static DynamicModel Open(string connectionStringOrName) {
+            dynamic dm = new DynamicModel(connectionStringOrName);
             return dm;
         }
-
-        public DynamicModel(string connectionStringName, string tableName = "",
-            string primaryKeyField = "", string descriptorField = "", string sequence = "") {
-
-            TableName = tableName == "" ? this.GetType().Name : tableName;
-            PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
-            DescriptorField = descriptorField;
-            _sequence = sequence == "" ? ConfigurationManager.AppSettings["default_seq"] : sequence;
-
-            var _providerName = "System.Data.OracleClient";
-            var _connectionStringKey = ConfigurationManager.ConnectionStrings[connectionStringName];
-
-            if (_connectionStringKey == null) {
-                ConnectionString = connectionStringName;
-            } else {
-                ConnectionString = _connectionStringKey.ConnectionString;
-                if (!string.IsNullOrEmpty(_connectionStringKey.ProviderName)) {
-                    _providerName = _connectionStringKey.ProviderName;
-                }
-            }
-
-            _factory = DbProviderFactories.GetFactory(_providerName);
-
+        public DynamicModel(string connectionStringOrName, string tableName = null,
+            string primaryKeyField = null, string descriptorField = null, string sequence = null) {
+            TableName = string.IsNullOrWhiteSpace(tableName) ? GetType().Name : tableName;
+            PrimaryKeyField = string.IsNullOrWhiteSpace(primaryKeyField) ? "ID" : primaryKeyField;
+            DescriptorField = descriptorField ?? string.Empty;
+            _sequence = string.IsNullOrWhiteSpace(sequence) ? ConfigurationManager.AppSettings["default_seq"] : sequence;
+            ConnectionStringSettings settings = ConfigurationManager.ConnectionStrings[connectionStringOrName];
+            // if settings is null assume they provided full connecton string
+            _connectionString = settings == null ? connectionStringOrName : settings.ConnectionString;
+            _factory = DbProviderFactories.GetFactory(settings == null ? DefaultProviderName : settings.ProviderName);
+            _connectionString = ConfigurationManager.ConnectionStrings[connectionStringOrName].ConnectionString;
         }
 
         /// <summary>
@@ -244,7 +232,7 @@ namespace Massive.Oracle {
         /// </summary>
         public virtual DbConnection OpenConnection() {
             var result = _factory.CreateConnection();
-            result.ConnectionString = ConnectionString;
+            result.ConnectionString = _connectionString;
             result.Open();
             return result;
         }
