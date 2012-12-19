@@ -207,6 +207,14 @@ namespace Massive {
                 }
             }
         }
+        public virtual IEnumerable<dynamic> Query(string sql, Dictionary<string, object> namedArgs = null, bool isProc = false) {
+            using (var conn = OpenConnection()) 
+            using (var rdr = CreateCommand(sql, conn, namedArgs, isProc).ExecuteReader()) {
+                while (rdr.Read()) {
+                    yield return rdr.RecordToExpando();
+                }
+            }
+        }
         /// <summary>
         /// Returns a single result
         /// </summary>
@@ -214,6 +222,13 @@ namespace Massive {
             object result = null;
             using (var conn = OpenConnection()) {
                 result = CreateCommand(sql, conn, args).ExecuteScalar();
+            }
+            return result;
+        }
+        public virtual object Scalar(string sql, Dictionary<string, object> namedArgs = null, bool isProc = false) {
+            object result = null;
+            using (var conn = OpenConnection()) {
+                result = CreateCommand(sql, conn, namedArgs, isProc).ExecuteScalar();
             }
             return result;
         }
@@ -274,7 +289,6 @@ namespace Massive {
         public virtual int Execute(DbCommand command) {
             return Execute(new DbCommand[] { command });
         }
-
         public virtual int Execute(string sql, params object[] args) {
             return Execute(CreateCommand(sql, null, args));
         }
