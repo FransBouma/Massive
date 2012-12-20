@@ -424,7 +424,7 @@ namespace Massive {
             var settings = (IDictionary<string, object>)expando;
             var sbKeys = new StringBuilder();
             var sbVals = new StringBuilder();
-            var stub = "INSERT INTO [{0}] ({1}) \r\n VALUES ({2})";
+            var stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2})";
             result = CreateCommand(stub, null);
             int counter = 0;
             foreach (var item in settings) {
