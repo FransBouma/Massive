@@ -134,6 +134,7 @@ namespace Massive.PostgreSQL
     /// </summary>
     public class DynamicModel : DynamicObject
     {
+        private const string DefaultProviderName = "Npgsql";
         DbProviderFactory _factory;
         string ConnectionString;
         public static DynamicModel Open(string connectionStringName)
@@ -144,12 +145,15 @@ namespace Massive.PostgreSQL
         public DynamicModel(string connectionStringName, string tableName = "",
             string primaryKeyField = "", string descriptorField = "")
         {
-            TableName = tableName == "" ? this.GetType().Name : tableName;
-            PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
-            DescriptorField = descriptorField;
-            var _providerName = "Npgsql";
-            _factory = DbProviderFactories.GetFactory(_providerName);
-            ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
+            string primaryKeyField = null, string descriptorField = null) {
+            TableName = string.IsNullOrWhiteSpace(tableName) ? GetType().Name : tableName;
+            PrimaryKeyField = string.IsNullOrWhiteSpace(primaryKeyField) ? "ID" : primaryKeyField;
+            DescriptorField = descriptorField ?? string.Empty;
+            ConnectionStringSettings settings = ConfigurationManager.ConnectionStrings[connectionStringOrName];
+            // if settings is null assume they provided full connecton string
+            ConnectionString = settings == null ? connectionStringOrName : settings.ConnectionString;
+            _factory = DbProviderFactories.GetFactory(settings == null ? DefaultProviderName : settings.ProviderName);
+            ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringOrName].ConnectionString;
         }
 
         /// <summary>

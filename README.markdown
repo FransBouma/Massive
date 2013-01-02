@@ -14,7 +14,7 @@ How Do You Use It?
 ------------------
 Massive is a "wrapper" for your DB tables and uses System.Dynamic extensively. If you try to use this with C# 3.5 or below, it will explode and you will be sad. Me too honestly - I like how this doesn't require any DLLs other than what's in the GAC. Yippee.
 
- * Get a Database. Northwind will work nicely. Add a connection to your database in your web.config (or app.config). Don't forget the providerName! If you don't know what that is - just add providerName = 'System.Data.SqlClient' right after the whole connectionString stuff.
+ * Get a Database. Northwind will work nicely. Add a connection to your database in your web.config (or app.config). Don't forget the providerName! If you don't know what that is - just add providerName = 'System.Data.SqlClient' right after the whole connectionString stuff. If you don't use a config file you can pass the whole connection string to the constructor instead of the name.
  * Create a class that wraps a table. You can call it whatever you like, but if you want to be cool just name it the same as your table.
  * Query away and have fun
 
@@ -191,8 +191,13 @@ Factory Constructor
 -------------------
 One thing that can be useful is to use Massive to just run a quick query. You can do that now by using "Open()" which is a static builder on DynamicModel:
 
+Open by ConntectionString Name in config file:
 ```csharp
 var db = Massive.DynamicModel.Open("myConnectionStringName");
+```
+Open by ConnectionString:
+```csharp
+var db = Massive.DynamicModel.Open("Data Source=myserver.domain;Initial Catalog=mycatalog;Integrated Security=True;");
 ```
 
 You can execute whatever you like at that point.
