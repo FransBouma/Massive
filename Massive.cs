@@ -208,6 +208,22 @@ namespace Massive {
                 }
             }
         }
+        public virtual IEnumerable<dynamic> Query(string sql, Dictionary<string, object> namedArgs, bool isProc = false) {
+            using (var conn = OpenConnection()) 
+            using (var rdr = CreateCommand(sql, conn, namedArgs, isProc).ExecuteReader()) {
+                while (rdr.Read()) {
+                    yield return rdr.RecordToExpando();
+                }
+            }
+        }
+        public virtual IEnumerable<dynamic> Query(string sql, bool isProc, params SqlParameter[] sqlParameters) {
+            using (var conn = OpenConnection()) 
+            using (var rdr = CreateCommand(sql, conn, isProc, sqlParameters).ExecuteReader()) {
+                while (rdr.Read()) {
+                    yield return rdr.RecordToExpando();
+                }
+            }
+        }
         /// <summary>
         /// Returns a single result
         /// </summary>
@@ -215,6 +231,20 @@ namespace Massive {
             object result = null;
             using (var conn = OpenConnection()) {
                 result = CreateCommand(sql, conn, args).ExecuteScalar();
+            }
+            return result;
+        }
+        public virtual object Scalar(string sql, Dictionary<string, object> namedArgs = null, bool isProc = false) {
+            object result = null;
+            using (var conn = OpenConnection()) {
+                result = CreateCommand(sql, conn, namedArgs, isProc).ExecuteScalar();
+            }
+            return result;
+        }
+        public virtual object Scalar(string sql, bool isProc, params SqlParameter[] sqlParameters) {
+            object result = null;
+            using (var conn = OpenConnection()) {
+                result = CreateCommand(sql, conn, isProc, sqlParameters).ExecuteScalar();
             }
             return result;
         }
@@ -228,6 +258,30 @@ namespace Massive {
             if (args.Length > 0)
                 result.AddParams(args);
             return result;
+        }
+        /// <summary>
+        /// Creates a DBCommand that you can use for loving your database.
+        /// </summary>
+        DbCommand CreateCommand(string sql, DbConnection conn, Dictionary<string, object> namedArgs, bool isProc = false) {
+            SqlParameter[] sqlParameters = null;
+            if (namedArgs != null) {
+                sqlParameters = namedArgs.Select(kvp => new SqlParameter(kvp.Key, kvp.Value)).ToArray();
+            }
+            return CreateCommand(sql, conn, isProc, sqlParameters);
+        }
+        DbCommand CreateCommand(string sql, DbConnection conn, bool isProc, params SqlParameter[] sqlParameters) {
+            // Need a SqlCommand for named param support and SProc support
+            SqlCommand cmd = _factory.CreateCommand() as SqlCommand;
+            cmd.Connection = conn as SqlConnection;
+            cmd.CommandText = sql;
+            if (sqlParameters != null && sqlParameters.Length > 0) {
+                cmd.Parameters.AddRange(sqlParameters);
+            }
+            if (isProc) {
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.Add("@returnValue", SqlDbType.Int).Direction = ParameterDirection.ReturnValue; ;
+            }
+            return cmd;
         }
         /// <summary>
         /// Returns and OpenConnection
@@ -263,6 +317,12 @@ namespace Massive {
         public virtual int Execute(string sql, params object[] args) {
             return Execute(CreateCommand(sql, null, args));
         }
+        public virtual int Execute(string sql, Dictionary<string, object> namedArgs, bool isProc = false) {
+            return Execute(CreateCommand(sql, null, namedArgs, isProc));
+        }
+        public virtual int Execute(string sql, bool isProc = false, params SqlParameter[] sqlParameters) {
+            return Execute(CreateCommand(sql, null, isProc, sqlParameters));
+        }
         /// <summary>
         /// Executes a series of DBCommands in a transaction
         /// </summary>
@@ -273,7 +333,14 @@ namespace Massive {
                     foreach (var cmd in commands) {
                         cmd.Connection = conn;
                         cmd.Transaction = tx;
-                        result += cmd.ExecuteNonQuery();
+                        if (cmd.CommandType == CommandType.StoredProcedure) {
+                            cmd.ExecuteNonQuery();
+                            if (cmd.Parameters["@returnValue"].Value != null)
+                                result += Int32.Parse(cmd.Parameters["@returnValue"].Value.ToString());
+                            else
+                                result += -1;
+                        } else
+                            result += cmd.ExecuteNonQuery();
                     }
                     tx.Commit();
                 }
