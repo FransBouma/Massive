@@ -113,6 +113,7 @@ namespace Massive.SQLite
     /// </summary>
     public class DynamicModel : DynamicObject
     {
+        private const string DefaultProviderName = "System.Data.SQLite";
         DbProviderFactory _factory;
         string ConnectionString;
         public static DynamicModel Open(string connectionStringName)
@@ -122,12 +123,13 @@ namespace Massive.SQLite
         }
         public DynamicModel(string connectionStringName, string tableName = "", string primaryKeyField = "")
         {
-            TableName = tableName == "" ? this.GetType().Name : tableName;
-            PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
-            var _providerName = "System.Data.SQLite";
-            _factory = DbProviderFactories.GetFactory(_providerName);
-            ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
-            _providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
+            TableName = string.IsNullOrWhiteSpace(tableName) ? GetType().Name : tableName;
+            PrimaryKeyField = string.IsNullOrWhiteSpace(primaryKeyField) ? "ID" : primaryKeyField;
+            ConnectionStringSettings settings = ConfigurationManager.ConnectionStrings[connectionStringOrName];
+            // if settings is null assume they provided full connecton string
+            ConnectionString = settings == null ? connectionStringOrName : settings.ConnectionString;
+            _factory = DbProviderFactories.GetFactory(settings == null ? DefaultProviderName : settings.ProviderName);
+            ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringOrName].ConnectionString;
         }
 
         /// <summary>
