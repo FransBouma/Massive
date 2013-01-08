@@ -489,7 +489,7 @@ namespace Massive.Oracle {
                     var cmd = CreateInsertCommand(ex);
                     cmd.Connection = conn;
                     cmd.ExecuteNonQuery();
-                    if (_sequence != "")
+                    if (!string.IsNullOrEmpty(_sequence))
                     {
                         cmd.CommandText = "SELECT " + _sequence + ".NEXTVAL as newID FROM DUAL";
                         ex.ID = cmd.ExecuteScalar();
