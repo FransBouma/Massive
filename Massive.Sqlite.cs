@@ -250,6 +250,7 @@ namespace Massive.SQLite
                 {
                     yield return rdr.RecordToExpando(); ;
                 }
+                rdr.Dispose();
             }
         }
         /// <summary>
@@ -342,6 +343,7 @@ namespace Massive.SQLite
                         cmd.Connection = conn;
                         cmd.Transaction = tx;
                         result += cmd.ExecuteNonQuery();
+                        cmd.Dispose();
                     }
                     tx.Commit();
                 }
@@ -462,6 +464,7 @@ namespace Massive.SQLite
                 cmd.ExecuteNonQuery();
                 cmd.CommandText = "select last_insert_rowid()";
                 result = cmd.ExecuteScalar();
+                cmd.Dispose();
             }
             return result;
         }
