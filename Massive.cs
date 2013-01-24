@@ -502,9 +502,8 @@ namespace Massive {
             if (BeforeSave(ex)) {
                 using (dynamic conn = OpenConnection()) {
                     var cmd = CreateInsertCommand(ex);
+                    cmd.CommandText = cmd.CommandText + ";SELECT SCOPE_IDENTITY() as newID";
                     cmd.Connection = conn;
-                    cmd.ExecuteNonQuery();
-                    cmd.CommandText = "SELECT @@IDENTITY as newID";
                     ex.ID = cmd.ExecuteScalar();
                     Inserted(ex);
                 }
