@@ -221,7 +221,7 @@ namespace Massive {
         /// <summary>
         /// Creates a DBCommand that you can use for loving your database.
         /// </summary>
-        DbCommand CreateCommand(string sql, DbConnection conn, params object[] args) {
+        public DbCommand CreateCommand(string sql, DbConnection conn, params object[] args) {
             var result = _factory.CreateCommand();
             result.Connection = conn;
             result.CommandText = sql;
@@ -267,10 +267,13 @@ namespace Massive {
         /// Executes a series of DBCommands in a transaction
         /// </summary>
         public virtual int Execute(IEnumerable<DbCommand> commands) {
+            var list = commands.ToList();
+            if (list.Count == 0) return 0;
+            
             var result = 0;
             using (var conn = OpenConnection()) {
                 using (var tx = conn.BeginTransaction()) {
-                    foreach (var cmd in commands) {
+                    foreach (var cmd in list) {
                         cmd.Connection = conn;
                         cmd.Transaction = tx;
                         result += cmd.ExecuteNonQuery();
