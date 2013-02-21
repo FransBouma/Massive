@@ -428,6 +428,9 @@ namespace Massive {
             result = CreateCommand(stub, null);
             int counter = 0;
             foreach (var item in settings) {
+                if (item.Key.Equals(PrimaryKeyField, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
                 sbKeys.AppendFormat("{0},", item.Key);
                 sbVals.AppendFormat("@{0},", counter.ToString());
                 result.AddParam(item.Value);
