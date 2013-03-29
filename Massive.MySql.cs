@@ -96,12 +96,19 @@ namespace Massive {
             dynamic dm = new DynamicModel(connectionStringName);
             return dm;
         }
+        /// <summary>
+        /// Create a dynamic model
+        /// </summary>
+        /// <param name="connectionStringName">the connection string name or the connection stirng itself</param>
+        /// <param name="tableName">the table name</param>
+        /// <param name="primaryKeyField">the primary key field name</param>
         public DynamicModel(string connectionStringName, string tableName = "", string primaryKeyField = "") {
             TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
             var _providerName = "MySql.Data.MySqlClient";
             _factory = DbProviderFactories.GetFactory(_providerName);
-            ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
+            var conString = ConfigurationManager.ConnectionStrings[connectionStringName];
+            ConnectionString = conString != null ? conString.ConnectionString : connectionStringName;
         }
 
         /// <summary>
