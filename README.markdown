@@ -1,22 +1,18 @@
-Massive is a Single File Database Lover. Move over Bacon - Taste is got a new friend in .NET Land
+Massive.MySql is a Single File Database Lover.
 =================================================================================================
 
-
-I'm sharing this with the world because we need another way to access data - don't you think? Truthfully - I wanted to see if I could flex the C# 4 stuff and
-run up data access with a single file. I used to have this down to 350 lines, but you also needed to reference WebMatrix.Data. Now you don't - this is ready to roll 
-and weighs in at a lovely 524 lines of code. Most of which is comments.
+Massive.MySql is a fork of Massive by @robconery. This version is made for use with MySql (obviously).
 
 How To Install It?
 ------------------
-Drop the code file into your app and change it as you wish. 
+Search for Massive.MySql on nuget or drop the code file into your app and change it as you wish. 
 
 How Do You Use It?
 ------------------
 Massive is a "wrapper" for your DB tables and uses System.Dynamic extensively. If you try to use this with C# 3.5 or below, it will explode and you will be sad. Me too honestly - I like how this doesn't require any DLLs other than what's in the GAC. Yippee.
 
- * Get a Database. Northwind will work nicely. Add a connection to your database in your web.config (or app.config). Don't forget the providerName! If you don't know what that is - just add providerName = 'System.Data.SqlClient' right after the whole connectionString stuff.
- * install the mysql library with NuGet "install-package mysql.data"
- * add a provider name to your app/web.config
+ * Get a Database. Add a connection to your database in your web.config (or app.config). Don't forget the providerName! If you don't know what that is - just add providerName = 'System.Data.SqlClient' right after the whole connectionString stuff.
+ * Add a provider name to your app/web.config
 		  
 		<system.data>
 		    <DbProviderFactories>
@@ -27,21 +23,19 @@ Massive is a "wrapper" for your DB tables and uses System.Dynamic extensively. I
  * Create a class that wraps a table. You can call it whatever you like, but if you want to be cool just name it the same as your table.
  * Query away and have fun
 
-Code Please
+Querying
 -----------
 Let's say we have a table named "Products". You create a class like this:
     
 	public class Products:DynamicModel {
-        	//you don't have to specify the connection - Massive will use the first one it finds in your config
-		public Products():base("northwind") {
-            		PrimaryKeyField = "ProductID";
-        	}
-
-    	}
+		//you don't have to specify the connection - Massive will use the first one it finds in your config
+		public Products() : base("northwind") {
+			PrimaryKeyField = "ProductID";
+		}
+	}
 
 You could also just instantiate it inline, as needed:
 	var tbl = new DynamicModel("northwind", tableName:"Products", primaryKeyField:"ProductID");
-
 
 Now you can query thus:
 
@@ -71,7 +65,6 @@ That's pretty much it. One thing I really like is the groovy DSL that Massive us
 
 	var table = new Products();
 	var productsThatILike = table.Query("SELECT ProductName, CategoryName FROM Products INNER JOIN Categories ON Categories.CategoryID = Products.CategoryID WHERE CategoryID = @0",5);
-	//get down!
 
 Some of you might look at that and think it looks suspiciously like inline SQL. It *does* look sort of like it doesn't it! But I think it reads a bit better than Linq to SQL - it's a bit closer to the mark if you will. 
 
