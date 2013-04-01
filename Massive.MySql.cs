@@ -111,7 +111,7 @@ namespace Massive
     /// <summary>
     /// A class that wraps your database table in Dynamic Funtime
     /// </summary>
-    public sealed class DynamicModel : DynamicObject
+    public class DynamicModel : DynamicObject
     {
         DbProviderFactory _factory;
         string ConnectionString;
