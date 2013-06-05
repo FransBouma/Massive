@@ -454,6 +454,7 @@ namespace Massive {
             foreach (var item in settings) {
                 var val = item.Value;
                 if (!item.Key.Equals(PrimaryKeyField, StringComparison.OrdinalIgnoreCase) && item.Value != null) {
+                    if (String.IsNullOrEmpty(item.Value.ToString())) { val = null; };
                     result.AddParam(val);
                     sbKeys.AppendFormat("{0} = @{1}, \r\n", item.Key, counter.ToString());
                     counter++;
