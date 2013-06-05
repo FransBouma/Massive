@@ -120,7 +120,7 @@ namespace Massive {
             DescriptorField = descriptorField;
             var _providerName = "System.Data.SqlClient";
             
-            if(ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName != null)
+            if (!string.IsNullOrWhiteSpace(ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName))
                 _providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
             
             _factory = DbProviderFactories.GetFactory(_providerName);
