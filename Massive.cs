@@ -146,10 +146,12 @@ namespace Massive {
             return dm;
         }
         public DynamicModel(string connectionStringName, string tableName = "",
-            string primaryKeyField = "", string descriptorField = "") {
+            string primaryKeyField = "", string descriptorField = "", bool pkIsIdentityColumn = true)
+        {
             TableName = tableName == "" ? this.GetType().Name : tableName;
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
             DescriptorField = descriptorField;
+            PkIsIdentityColumn = pkIsIdentityColumn;
             var _providerName = "System.Data.SqlClient";
             
             if (!string.IsNullOrWhiteSpace(ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName))
@@ -313,6 +315,7 @@ namespace Massive {
             o.ToDictionary().TryGetValue(PrimaryKeyField, out result);
             return result;
         }
+        public virtual bool PkIsIdentityColumn { get; set; }
         public virtual string TableName { get; set; }
         /// <summary>
         /// Returns all records complying with the passed-in WHERE clause and arguments, 
@@ -413,6 +416,10 @@ namespace Massive {
             var stub = "INSERT INTO {0} ({1}) \r\n VALUES ({2})";
             result = CreateCommand(stub, null);
             int counter = 0;
+            if (PkIsIdentityColumn)
+            {
+                settings.Remove(PrimaryKeyField);
+            }            
             foreach (var item in settings) {
                 sbKeys.AppendFormat("{0},", item.Key);
                 sbVals.AppendFormat("@{0},", counter.ToString());
@@ -437,6 +444,10 @@ namespace Massive {
             var args = new List<object>();
             var result = CreateCommand(stub, null);
             int counter = 0;
+            if (PkIsIdentityColumn)
+            {
+                settings.Remove(PrimaryKeyField);
+            }  
             foreach (var item in settings) {
                 var val = item.Value;
                 if (!item.Key.Equals(PrimaryKeyField, StringComparison.OrdinalIgnoreCase) && item.Value != null) {
@@ -488,8 +499,14 @@ namespace Massive {
                     var cmd = CreateInsertCommand(ex);
                     cmd.Connection = conn;
                     cmd.ExecuteNonQuery();
-                    cmd.CommandText = "SELECT @@IDENTITY as newID";
-                    ex.ID = cmd.ExecuteScalar();
+                    if (PkIsIdentityColumn)
+                    {
+                        cmd.CommandText = "SELECT @@IDENTITY as newID";
+                        // Work with expando as dictionary:
+                        var d = ex as IDictionary<string, object>;
+                        // Set the new identity/PK:
+                        d[PrimaryKeyField] = (int)cmd.ExecuteScalar();
+                    }
                     Inserted(ex);
                 }
                 return ex;
