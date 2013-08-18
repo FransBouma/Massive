@@ -352,7 +352,7 @@ namespace Massive {
         /// </summary>
         public virtual T Find<T>(object key) where T : new() {
         var result = new T();
-        var sql = string.Format("SELECT TOP 2 * FROM {1} WHERE {2} = @0", TableName, PrimaryKeyField);
+        var sql = string.Format("SELECT TOP 2 * FROM {0} WHERE {1} = @0", TableName, PrimaryKeyField);
         return Query<T>(sql, key).FirstOrDefault();
         }
         /// <summary>
@@ -366,7 +366,7 @@ namespace Massive {
         /// Returns a single row from the database
         /// </summary>
         public virtual dynamic Find(object key) {
-        var sql = string.Format("SELECT TOP 2 FROM {1} WHERE {2} = @0", TableName, PrimaryKeyField);
+        var sql = string.Format("SELECT TOP 2 * FROM {0} WHERE {1} = @0", TableName, PrimaryKeyField);
             return Query(sql, key).FirstOrDefault();
         }
         /// <summary>
