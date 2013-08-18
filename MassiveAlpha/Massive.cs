@@ -52,8 +52,9 @@ namespace Massive {
                 } else {
                     p.Value = item;
                 }
-                if (item.GetType() == typeof(string))
+                if (item.GetType() == typeof(string)) {
                     p.Size = ((string)item).Length > 4000 ? -1 : 4000;
+                }
             }
             cmd.Parameters.Add(p);
         }
@@ -101,7 +102,9 @@ namespace Massive {
         public static dynamic ToExpando(this object o) {
             var result = new ExpandoObject();
             var d = result as IDictionary<string, object>; //work with the Expando as a Dictionary
-            if (o.GetType() == typeof(ExpandoObject)) return o; //shouldn't have to... but just in case
+            if (o.GetType() == typeof(ExpandoObject)) {
+                return o; //shouldn't have to... but just in case
+            }
             if (o.GetType() == typeof(NameValueCollection) || o.GetType().IsSubclassOf(typeof(NameValueCollection))) {
                 var nv = (NameValueCollection)o;
                 nv.Cast<string>().Select(key => new KeyValuePair<string, object>(key, nv[key])).ToList().ForEach(i => d.Add(i));
@@ -198,8 +201,9 @@ namespace Massive {
         IEnumerable<dynamic> _schema;
         public IEnumerable<dynamic> Schema {
             get {
-                if (_schema == null)
+                if (_schema == null) {
                     _schema = Query("SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @0", TableName);
+                }
                 return _schema;
             }
         }
@@ -343,10 +347,12 @@ namespace Massive {
         }
         private static string BuildSelect(string where, string orderBy, int limit) {
             string sql = limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1} " : "SELECT {0} FROM {1} ";
-            if (!string.IsNullOrEmpty(where))
+            if (!string.IsNullOrEmpty(where)) {
                 sql += where.Trim().StartsWith("where", StringComparison.OrdinalIgnoreCase) ? where : " WHERE " + where;
-            if (!String.IsNullOrEmpty(orderBy))
+            }
+            if (!String.IsNullOrEmpty(orderBy)) {
                 sql += orderBy.Trim().StartsWith("order by", StringComparison.OrdinalIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
+            }
             return sql;
         }
         /// <summary>
@@ -383,8 +389,9 @@ namespace Massive {
         /// This will return a string/object dictionary for dropdowns etc
         /// </summary>
         public virtual IDictionary<string, object> KeyValues(string orderBy = "") {
-            if (String.IsNullOrEmpty(DescriptorField))
+            if (String.IsNullOrEmpty(DescriptorField)) {
                 throw new InvalidOperationException("There's no DescriptorField set - do this in your constructor to describe the text value you want to see");
+            }
             var sql = string.Format("SELECT {0},{1} FROM {2} ", PrimaryKeyField, DescriptorField, TableName);
             if (!String.IsNullOrEmpty(orderBy)) {
                 sql += "ORDER BY " + orderBy;
@@ -560,10 +567,12 @@ namespace Massive {
 
         //validation methods
         public virtual void ValidatesPresenceOf(object value, string message = "Required") {
-            if (value == null)
+            if (value == null) {
                 Errors.Add(message);
-            if (String.IsNullOrEmpty(value.ToString()))
+            }
+            if (String.IsNullOrEmpty(value.ToString())) {
                 Errors.Add(message);
+            }
         }
         //fun methods
         public virtual void ValidatesNumericalityOf(object value, string message = "Should be a number") {
@@ -574,12 +583,14 @@ namespace Massive {
             }
         }
         public virtual void ValidateIsCurrency(object value, string message = "Should be money") {
-            if (value == null)
+            if (value == null) {
                 Errors.Add(message);
+            }
             decimal val = decimal.MinValue;
             decimal.TryParse(value.ToString(), out val);
-            if (val == decimal.MinValue)
+            if (val == decimal.MinValue) {
                 Errors.Add(message);
+            }
         }
         public int Count() {
             return Count(TableName);
