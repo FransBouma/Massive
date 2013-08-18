@@ -82,7 +82,6 @@ namespace Massive {
             }
             return result;
         }
-
         public static T ToSingle<T>(this IDataReader rdr) where T : new() {
             var item = new T();
             var props = item.GetType().GetProperties();
@@ -90,6 +89,10 @@ namespace Massive {
                 for (int i = 0; i < rdr.FieldCount; i++) {
                     if (rdr.GetName(i).Equals(prop.Name, StringComparison.InvariantCultureIgnoreCase)) {
                         var val = rdr.GetValue(i);
+                        // Allow return of Null Data from Database - should be handled at Db end or at client:
+                        if (val is DBNull){
+                            val = null;
+                        }
                         prop.SetValue(item, val);
                     }
                 }
