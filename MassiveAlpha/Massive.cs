@@ -158,25 +158,6 @@ namespace Massive {
             _factory = DbProviderFactories.GetFactory(_providerName);
             ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
         }
-
-        /// <summary>
-        /// Creates a new Expando from a Form POST - white listed against the columns in the DB
-        /// </summary>
-        public dynamic CreateFrom(NameValueCollection coll) {
-            dynamic result = new ExpandoObject();
-            var dc = (IDictionary<string, object>)result;
-            var schema = Schema;
-            //loop the collection, setting only what's in the Schema
-            foreach (var item in coll.Keys) {
-                var exists = schema.Any(x => x.COLUMN_NAME.ToLower() == item.ToString().ToLower());
-                if (exists) {
-                    var key = item.ToString();
-                    var val = coll[key];
-                    dc.Add(key, val);
-                }
-            }
-            return result;
-        }
         /// <summary>
         /// Gets a default value for the column
         /// </summary>
