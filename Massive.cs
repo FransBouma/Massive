@@ -13,6 +13,23 @@ using System.Text.RegularExpressions;
 
 namespace Massive {
     public static class ObjectExtensions {
+        public static void CloneFromObject(this object o, object record)
+        {
+            var props = o.GetType().GetProperties();
+            var dictionary = record.ToDictionary();
+
+            foreach (var prop in props)
+            {
+                var propName = prop.Name;
+                foreach (var key in dictionary.Keys)
+                {
+                    if (key.Equals(propName, StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        prop.SetValue(o, dictionary[key]);
+                    }
+                }
+            }
+        }
         /// <summary>
         /// Extension method for adding in a bunch of parameters
         /// </summary>
@@ -62,6 +79,37 @@ namespace Massive {
                 d.Add(rdr.GetName(i), DBNull.Value.Equals(rdr[i]) ? null : rdr[i]);
             return e;
         }
+        public static List<T> ToList<T>(this IDataReader rdr) where T : new()
+        {
+            var result = new List<T>();
+            while (rdr.Read())
+            {
+                result.Add(rdr.ToSingle<T>());
+            }
+            return result;
+        }
+
+        public static T ToSingle<T>(this IDataReader rdr) where T : new()
+        {
+
+            var item = new T();
+            var props = item.GetType().GetProperties();
+
+            foreach (var prop in props)
+            {
+                for (int i = 0; i < rdr.FieldCount; i++)
+                {
+                    if (rdr.GetName(i).Equals(prop.Name, StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        var val = rdr.GetValue(i);
+                        prop.SetValue(item, val);
+                    }
+                }
+
+            }
+
+            return item;
+        }
         /// <summary>
         /// Turns the object into an ExpandoObject
         /// </summary>
@@ -92,15 +140,14 @@ namespace Massive {
     /// <summary>
     /// Convenience class for opening/executing data
     /// </summary>
-    public static class DB {
-        public static DynamicModel Current {
-            get {
-                if (ConfigurationManager.ConnectionStrings.Count > 1) {
-                    return new DynamicModel(ConfigurationManager.ConnectionStrings[1].Name);
-                }
-                throw new InvalidOperationException("Need a connection string name - can't determine what it is");
-            }
+    public static class DB
+    {
+
+        public static DynamicModel Connect(string connectionName, string tableName, string primaryKeyField = "id")
+        {
+            return new DynamicModel(ConfigurationManager.ConnectionStrings[connectionName].ConnectionString, tableName, primaryKeyField);
         }
+
     }
     
     /// <summary>
@@ -162,21 +209,6 @@ namespace Massive {
             }
             return result;
         }
-        /// <summary>
-        /// Creates an empty Expando set with defaults from the DB
-        /// </summary>
-        public dynamic Prototype {
-            get {
-                dynamic result = new ExpandoObject();
-                var schema = Schema;
-                foreach (dynamic column in schema) {
-                    var dc = (IDictionary<string, object>)result;
-                    dc.Add(column.COLUMN_NAME, DefaultValue(column));
-                }
-                result._Table = this;
-                return result;
-            }
-        }
         public string DescriptorField { get; protected set; }
         /// <summary>
         /// List out all the schema bits for use with ... whatever
@@ -205,6 +237,30 @@ namespace Massive {
             using (var rdr = CreateCommand(sql, connection, args).ExecuteReader()) {
                 while (rdr.Read()) {
                     yield return rdr.RecordToExpando(); ;
+                }
+            }
+        }
+        /// <summary>
+        /// Enumerates the reader yielding the result - thanks to Jeroen Haegebaert
+        /// </summary>
+        public virtual IEnumerable<T> Query<T>(string sql, params object[] args) where T : new()
+        {
+            using (var conn = OpenConnection())
+            {
+                var rdr = CreateCommand(sql, conn, args).ExecuteReader();
+                while (rdr.Read())
+                {
+                    yield return rdr.ToSingle<T>();
+                }
+            }
+        }
+        public virtual IEnumerable<T> Query<T>(string sql, DbConnection connection, params object[] args) where T : new()
+        {
+            using (var rdr = CreateCommand(sql, connection, args).ExecuteReader())
+            {
+                while (rdr.Read())
+                {
+                    yield return rdr.ToSingle<T>();
                 }
             }
         }
@@ -306,6 +362,11 @@ namespace Massive {
             string sql = BuildSelect(where, orderBy, limit);
             return Query(string.Format(sql, columns, TableName), args);
         }
+        public virtual IEnumerable<T> All<T>(string where = "", string orderBy = "", int limit = 0, string columns = "*", params object[] args) where T : new()
+        {
+            string sql = BuildSelect(where, orderBy, limit);
+            return Query<T>(string.Format(sql, columns, TableName), args);
+        }
         private static string BuildSelect(string where, string orderBy, int limit) {
             string sql = limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1} " : "SELECT {0} FROM {1} ";
             if (!string.IsNullOrEmpty(where))
@@ -314,72 +375,41 @@ namespace Massive {
                 sql += orderBy.Trim().StartsWith("order by", StringComparison.OrdinalIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
             return sql;
         }
+      /// <summary>
+      /// Returns a single row from the database
+      /// </summary>
+      public virtual T FirstOrDefault<T>(string where, params object[] args) where T: new() {
+        var result = new T();
+        var sql = string.Format("SELECT TOP 2 * FROM {0} WHERE {1}", TableName, where);
+        return Query<T>(sql, args).FirstOrDefault();
+      }
 
-        /// <summary>
-        /// Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords.
-        /// </summary>
-        public virtual dynamic Paged(string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage = 1, params object[] args)
-        {
-            return BuildPagedResult(where: where, orderBy: orderBy, columns: columns, pageSize: pageSize, currentPage: currentPage, args: args);
-        }
+      /// <summary>
+      /// Returns a single row from the database
+      /// </summary>
+      public virtual T Find<T>(object key) where T : new() {
+        var result = new T();
+        var sql = string.Format("SELECT TOP 2 * FROM {1} WHERE {2} = @0", TableName, PrimaryKeyField);
+        return Query<T>(sql, key).FirstOrDefault();
+      }
 
-        public virtual dynamic Paged(string sql, string primaryKey, string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage = 1, params object[] args)
-        {
-            return BuildPagedResult(sql, primaryKey, where, orderBy, columns, pageSize, currentPage, args);
-        }
+      /// <summary>
+      /// Returns a single row from the database
+      /// </summary>
+      public virtual dynamic FirstOrDefault(string where, params object[] args)
+      {
+          var sql = string.Format("SELECT TOP 2 * FROM {0} WHERE {1}", TableName, where);
+          return Query(sql, args).FirstOrDefault();
+      }
 
-        private dynamic BuildPagedResult(string sql = "", string primaryKeyField = "", string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage = 1, params object[] args)
-        {
-            dynamic result = new ExpandoObject();
-            var countSQL = "";
-            if (!string.IsNullOrEmpty(sql))
-                countSQL = string.Format("SELECT COUNT({0}) FROM ({1}) AS PagedTable", primaryKeyField, sql);
-            else
-                countSQL = string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName);
-
-            if (String.IsNullOrEmpty(orderBy))
-            {
-                orderBy = string.IsNullOrEmpty(primaryKeyField) ? PrimaryKeyField : primaryKeyField;
-            }
-
-            if (!string.IsNullOrEmpty(where))
-            {
-                if (!where.Trim().StartsWith("where", StringComparison.CurrentCultureIgnoreCase))
-                {
-                    where = " WHERE " + where;
-                }
-            }
-
-            var query = "";
-            if (!string.IsNullOrEmpty(sql))
-                query = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM ({3}) AS PagedTable {4}) AS Paged ", columns, pageSize, orderBy, sql, where);
-            else
-                query = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {2}) AS Row, {0} FROM {3} {4}) AS Paged ", columns, pageSize, orderBy, TableName, where);
-
-            var pageStart = (currentPage - 1) * pageSize;
-            query += string.Format(" WHERE Row > {0} AND Row <={1}", pageStart, (pageStart + pageSize));
-            countSQL += where;
-            result.TotalRecords = Scalar(countSQL, args);
-            result.TotalPages = result.TotalRecords / pageSize;
-            if (result.TotalRecords % pageSize > 0)
-                result.TotalPages += 1;
-            result.Items = Query(string.Format(query, columns, TableName), args);
-            return result;
-        }
-        /// <summary>
-        /// Returns a single row from the database
-        /// </summary>
-        public virtual dynamic Single(string where, params object[] args) {
-            var sql = string.Format("SELECT * FROM {0} WHERE {1}", TableName, where);
-            return Query(sql, args).FirstOrDefault();
-        }
-        /// <summary>
-        /// Returns a single row from the database
-        /// </summary>
-        public virtual dynamic Single(object key, string columns = "*") {
-            var sql = string.Format("SELECT {0} FROM {1} WHERE {2} = @0", columns, TableName, PrimaryKeyField);
-            return Query(sql, key).FirstOrDefault();
-        }
+      /// <summary>
+      /// Returns a single row from the database
+      /// </summary>
+      public virtual dynamic Find(object key)
+      {
+        var sql = string.Format("SELECT TOP 2 FROM {1} WHERE {2} = @0", TableName, PrimaryKeyField);
+          return Query(sql, key).FirstOrDefault();
+      }
         /// <summary>
         /// This will return a string/object dictionary for dropdowns etc
         /// </summary>
@@ -533,13 +563,20 @@ namespace Massive {
         /// Removes one or more records from the DB according to the passed-in WHERE
         /// </summary>
         public int Delete(object key = null, string where = "", params object[] args) {
-            var deleted = this.Single(key);
+            var deleted = this.Find(key);
             var result = 0;
             if (BeforeDelete(deleted)) {
                 result = Execute(CreateDeleteCommand(where: where, key: key, args: args));
                 Deleted(deleted);
             }
             return result;
+        }
+        /// <summary>
+        /// Removes one or more records from the DB according to the passed-in WHERE
+        /// </summary>
+        public int DeleteWhere(string where = "", params object[] args)
+        {
+            return Execute(CreateDeleteCommand(where: where, args: args));
         }
 
         public void DefaultTo(string key, object value, dynamic item) {
