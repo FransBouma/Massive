@@ -447,10 +447,6 @@ namespace Massive {
             var args = new List<object>();
             var result = CreateCommand(stub, null);
             int counter = 0;
-            if (PkIsIdentityColumn)
-            {
-                settings.Remove(PrimaryKeyField);
-            }  
             foreach (var item in settings) {
                 var val = item.Value;
                 if (!item.Key.Equals(PrimaryKeyField, StringComparison.OrdinalIgnoreCase) && item.Value != null) {
