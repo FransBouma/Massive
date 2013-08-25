@@ -102,7 +102,7 @@ namespace Massive {
             }
         }
     }
-    
+
     /// <summary>
     /// A class that wraps your database table in Dynamic Funtime
     /// </summary>
@@ -119,10 +119,10 @@ namespace Massive {
             PrimaryKeyField = string.IsNullOrEmpty(primaryKeyField) ? "ID" : primaryKeyField;
             DescriptorField = descriptorField;
             var _providerName = "System.Data.SqlClient";
-            
+
             if (!string.IsNullOrWhiteSpace(ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName))
                 _providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
-            
+
             _factory = DbProviderFactories.GetFactory(_providerName);
             ConnectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
         }
@@ -282,7 +282,7 @@ namespace Massive {
         }
         public virtual string PrimaryKeyField { get; set; }
         /// <summary>
-        /// Conventionally introspects the object passed in for a field that 
+        /// Conventionally introspects the object passed in for a field that
         /// looks like a PK. If you've named your PrimaryKeyField, this becomes easy
         /// </summary>
         public virtual bool HasPrimaryKey(object o) {
@@ -299,7 +299,7 @@ namespace Massive {
         }
         public virtual string TableName { get; set; }
         /// <summary>
-        /// Returns all records complying with the passed-in WHERE clause and arguments, 
+        /// Returns all records complying with the passed-in WHERE clause and arguments,
         /// ordered as specified, limited (TOP) by limit.
         /// </summary>
         public virtual IEnumerable<dynamic> All(string where = "", string orderBy = "", int limit = 0, string columns = "*", params object[] args) {
@@ -579,8 +579,6 @@ namespace Massive {
             decimal.TryParse(value.ToString(), out val);
             if (val == decimal.MinValue)
                 Errors.Add(message);
-
-
         }
         public int Count() {
             return Count(TableName);
@@ -593,81 +591,87 @@ namespace Massive {
         /// A helpful query tool
         /// </summary>
         public override bool TryInvokeMember(InvokeMemberBinder binder, object[] args, out object result) {
-            //parse the method
-            var constraints = new List<string>();
-            var counter = 0;
-            var info = binder.CallInfo;
-            // accepting named args only... SKEET!
-            if (info.ArgumentNames.Count != args.Length) {
-                throw new InvalidOperationException("Please use named arguments for this type of query - the column name, orderby, columns, etc");
+            var q = SqlQuery.FromInvokeMemberArgs(binder, args, TableName, defaultOrderBy: PrimaryKeyField);
+
+            if (q.IsScalarQuery) {
+                result = Scalar("SELECT " + q.ScalarFunction + q.From + q.Where, q.WhereArgs);
+            } else if (q.IsSingleRowQuery) {
+                result = Query("SELECT TOP 1 " + q.Columns + q.From + q.Where + q.OrderBy, q.WhereArgs).FirstOrDefault();
+            } else {
+                result = Query("SELECT " + q.Columns + q.From + q.Where + q.OrderBy, q.WhereArgs);
             }
-            //first should be "FindBy, Last, Single, First"
-            var op = binder.Name;
-            var columns = " * ";
-            string orderBy = string.Format(" ORDER BY {0}", PrimaryKeyField);
-            string sql = "";
-            string where = "";
-            var whereArgs = new List<object>();
+            return true;
+        }
 
-            //loop the named args - see if we have order, columns and constraints
-            if (info.ArgumentNames.Count > 0) {
+        /// <summary>
+        ///  Query parts for Massive's named argument query syntax
+        /// </summary>
+        private class SqlQuery {
+            public static SqlQuery FromInvokeMemberArgs(InvokeMemberBinder binder, object[] args, string tableName, string defaultOrderBy) {
+                return new SqlQuery().WithInvokeMemberArgs(binder, args, tableName, defaultOrderBy);
+            }
 
-                for (int i = 0; i < args.Length; i++) {
-                    var name = info.ArgumentNames[i].ToLower();
-                    switch (name) {
+            private static string[] _scalarOperations = new[] { "count", "sum", "max", "min", "avg" };
+            private static string[] _singleRowOperations = new [] { "first", "last", "get", "single" };
+            private string _operation;
+            public string ScalarFunction {
+                get {
+                    if (! IsScalarQuery) throw new InvalidOperationException("Not a scalar query.");
+                    return string.Concat(_operation, " (", _operation == "count" ? "*" : Columns, ") ");
+                }
+            }
+            public bool IsScalarQuery {
+                get { return _scalarOperations.Contains(_operation); }
+            }
+            public bool IsSingleRowQuery {
+                get { return _singleRowOperations.Any(_operation.StartsWith); }
+            }
+            public string Columns { get; private set; }
+            public string From { get; private set; }
+            public string Where { get; private set; }
+            public object[] WhereArgs { get; private set; }
+            public string OrderBy { get; private set; }
+
+            private SqlQuery WithInvokeMemberArgs(InvokeMemberBinder binder, object[] argValues, string tablename, string defaultOrderBy) {
+                // accepting named args only... SKEET!
+                var argNames = binder.CallInfo.ArgumentNames;
+                if (argNames.Count != argValues.Length) {
+                    throw new InvalidOperationException("Please use named arguments for this type of query - the column name, orderby, columns, etc");
+                }
+                _operation = binder.Name.ToLower();
+
+                var args = argNames.Zip(argValues, (Name, Value) => new { Name = Name.ToLower(), Value });
+                var constraints = new List<string>();
+                var whereArgs = new List<object>();
+                var constraintCounter = 0;
+                foreach (var arg in args) {
+                    switch (arg.Name) {
                         case "orderby":
-                            orderBy = " ORDER BY " + args[i];
+                            OrderBy = " ORDER BY " + arg.Value;
                             break;
                         case "columns":
-                            columns = args[i].ToString();
+                            Columns = arg.Value.ToString();
                             break;
                         default:
-                            constraints.Add(string.Format(" {0} = @{1}", name, counter));
-                            whereArgs.Add(args[i]);
-                            counter++;
+                            constraints.Add(string.Format("{0} = @{1}", arg.Name, constraintCounter));
+                            whereArgs.Add(arg.Value);
+                            constraintCounter++;
                             break;
                     }
                 }
+
+                Columns = Columns ?? " * ";
+                From = " FROM " + tablename + " ";
+                Where = constraints.Count > 0
+                    ? " WHERE " + string.Join(" AND ", constraints.ToArray())
+                    : "";
+                WhereArgs = whereArgs.ToArray();
+                OrderBy = OrderBy ?? " ORDER BY " + defaultOrderBy;
+                if (_operation.StartsWith("last"))
+                    OrderBy += " DESC";
+
+                return this;
             }
-
-            //Build the WHERE bits
-            if (constraints.Count > 0) {
-                where = " WHERE " + string.Join(" AND ", constraints.ToArray());
-            }
-            //probably a bit much here but... yeah this whole thing needs to be refactored...
-            if (op.ToLower() == "count") {
-                result = Scalar("SELECT COUNT(*) FROM " + TableName + where, whereArgs.ToArray());
-            } else if (op.ToLower() == "sum") {
-                result = Scalar("SELECT SUM(" + columns + ") FROM " + TableName + where, whereArgs.ToArray());
-            } else if (op.ToLower() == "max") {
-                result = Scalar("SELECT MAX(" + columns + ") FROM " + TableName + where, whereArgs.ToArray());
-            } else if (op.ToLower() == "min") {
-                result = Scalar("SELECT MIN(" + columns + ") FROM " + TableName + where, whereArgs.ToArray());
-            } else if (op.ToLower() == "avg") {
-                result = Scalar("SELECT AVG(" + columns + ") FROM " + TableName + where, whereArgs.ToArray());
-            } else {
-
-                //build the SQL
-                sql = "SELECT TOP 1 " + columns + " FROM " + TableName + where;
-                var justOne = op.StartsWith("First") || op.StartsWith("Last") || op.StartsWith("Get") || op.StartsWith("Single");
-
-                //Be sure to sort by DESC on the PK (PK Sort is the default)
-                if (op.StartsWith("Last")) {
-                    orderBy = orderBy + " DESC ";
-                } else {
-                    //default to multiple
-                    sql = "SELECT " + columns + " FROM " + TableName + where;
-                }
-
-                if (justOne) {
-                    //return a single record
-                    result = Query(sql + orderBy, whereArgs.ToArray()).FirstOrDefault();
-                } else {
-                    //return lots
-                    result = Query(sql + orderBy, whereArgs.ToArray());
-                }
-            }
-            return true;
         }
     }
 }
