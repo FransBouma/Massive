@@ -233,10 +233,12 @@ namespace Massive.SQLite
         {
             using (var conn = OpenConnection())
             {
-                var rdr = CreateCommand(sql, conn, args).ExecuteReader();
-                while (rdr.Read())
+                using(var rdr = CreateCommand(sql, conn, args).ExecuteReader())
                 {
-                    yield return rdr.RecordToExpando(); ;
+                    while (rdr.Read())
+                    {
+                        yield return rdr.RecordToExpando(); ;
+                    }
                 }
             }
         }
