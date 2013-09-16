@@ -316,7 +316,7 @@ namespace Massive.Oracle {
             string sql = BuildSelect(where, orderBy, limit);
             return Query(string.Format(sql, columns, TableName), args);
         }
-        private static string BuildSelect(string where, string orderBy, int limit) {
+        protected static string BuildSelect(string where, string orderBy, int limit) {
             string sql = "SELECT {0} FROM {1} ";
             if (!string.IsNullOrEmpty(where))
                 sql += where.Trim().StartsWith("where", StringComparison.OrdinalIgnoreCase) ? where : "WHERE " + where;
