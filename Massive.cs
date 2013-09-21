@@ -95,8 +95,8 @@ namespace Massive {
     public static class DB {
         public static DynamicModel Current {
             get {
-                if (ConfigurationManager.ConnectionStrings.Count > 1) {
-                    return new DynamicModel(ConfigurationManager.ConnectionStrings[1].Name);
+                if (ConfigurationManager.ConnectionStrings.Count > 0) {
+                    return new DynamicModel(ConfigurationManager.ConnectionStrings[0].Name);
                 }
                 throw new InvalidOperationException("Need a connection string name - can't determine what it is");
             }
