@@ -7,9 +7,6 @@ using System.Data.Common;
 using System.Dynamic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using System.Data.SqlClient;
-using System.Text.RegularExpressions;
 
 namespace Massive {
     public static class ObjectExtensions {
@@ -503,8 +500,8 @@ namespace Massive {
                 using (dynamic conn = OpenConnection()) {
                     var cmd = CreateInsertCommand(ex);
                     cmd.Connection = conn;
-                    cmd.ExecuteNonQuery();
-                    cmd.CommandText = "SELECT @@IDENTITY as newID";
+                    // Append selecting SCOPE_IDENTITY() to the query to get the new ID.
+                    cmd.CommandText = string.Format("{0}; SELECT SCOPE_IDENTITY() as newID", cmd.CommandText);
                     ex.ID = cmd.ExecuteScalar();
                     Inserted(ex);
                 }
