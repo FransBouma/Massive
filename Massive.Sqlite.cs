@@ -594,32 +594,55 @@ namespace Massive.SQLite
             {
                 where = " WHERE " + string.Join(" AND ", constraints.ToArray());
             }
-            //build the SQL
-            string sql = "SELECT TOP 1 " + columns + " FROM " + TableName + where;
-            var justOne = op.StartsWith("First") || op.StartsWith("Last") || op.StartsWith("Get");
-
-            //Be sure to sort by DESC on the PK (PK Sort is the default)
-            if (op.StartsWith("Last"))
+            //probably a bit much here but... yeah this whole thing needs to be refactored...
+            if (op.ToLower() == "count")
             {
-                orderBy = orderBy + " DESC ";
+                result = Scalar("SELECT COUNT(*) FROM " + TableName + where, whereArgs.ToArray());
+            }
+            else if (op.ToLower() == "sum")
+            {
+                result = Scalar("SELECT SUM(" + columns + ") FROM " + TableName + where, whereArgs.ToArray());
+            }
+            else if (op.ToLower() == "max")
+            {
+                result = Scalar("SELECT MAX(" + columns + ") FROM " + TableName + where, whereArgs.ToArray());
+            }
+            else if (op.ToLower() == "min")
+            {
+                result = Scalar("SELECT MIN(" + columns + ") FROM " + TableName + where, whereArgs.ToArray());
+            }
+            else if (op.ToLower() == "avg")
+            {
+                result = Scalar("SELECT AVG(" + columns + ") FROM " + TableName + where, whereArgs.ToArray());
             }
             else
             {
-                //default to multiple
-                sql = "SELECT " + columns + " FROM " + TableName + where;
-            }
+                //build the SQL
+                string sql = "SELECT TOP 1 " + columns + " FROM " + TableName + where;
+                var justOne = op.StartsWith("First") || op.StartsWith("Last") || op.StartsWith("Get");
 
-            if (justOne)
-            {
-                //return a single record
-                result = Query(sql + orderBy, whereArgs.ToArray()).FirstOrDefault();
-            }
-            else
-            {
-                //return lots
-                result = Query(sql + orderBy, whereArgs.ToArray());
-            }
+                //Be sure to sort by DESC on the PK (PK Sort is the default)
+                if (op.StartsWith("Last"))
+                {
+                    orderBy = orderBy + " DESC ";
+                }
+                else
+                {
+                    //default to multiple
+                    sql = "SELECT " + columns + " FROM " + TableName + where;
+                }
 
+                if (justOne)
+                {
+                    //return a single record
+                    result = Query(sql + orderBy, whereArgs.ToArray()).FirstOrDefault();
+                }
+                else
+                {
+                    //return lots
+                    result = Query(sql + orderBy, whereArgs.ToArray());
+                }
+            }
             return true;
         }
     }
