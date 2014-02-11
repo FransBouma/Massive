@@ -504,7 +504,7 @@ namespace Massive {
                     var cmd = CreateInsertCommand(ex);
                     cmd.Connection = conn;
                     cmd.ExecuteNonQuery();
-                    cmd.CommandText = "SELECT @@IDENTITY as newID";
+                    cmd.CommandText = "SELECT SCOPE_IDENTITY() as newID";
                     ex.ID = cmd.ExecuteScalar();
                     Inserted(ex);
                 }
