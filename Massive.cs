@@ -490,11 +490,12 @@ namespace Massive {
 
         //Temporary holder for error messages
         public IList<string> Errors = new List<string>();
+
         /// <summary>
         /// Adds a record to the database. You can pass in an Anonymous object, an ExpandoObject,
         /// A regular old POCO, or a NameValueColletion from a Request.Form or Request.QueryString
         /// </summary>
-        public virtual dynamic Insert(object o) {
+        public virtual dynamic InsertOriginal(object o) {
             var ex = o.ToExpando();
             if (!IsValid(ex)) {
                 throw new InvalidOperationException("Can't insert: " + String.Join("; ", Errors.ToArray()));
@@ -513,6 +514,31 @@ namespace Massive {
                 return null;
             }
         }
+        public virtual dynamic InsertNew(object o)
+        {
+            var ex = o.ToExpando();
+            if (!IsValid(ex))
+            {
+                throw new InvalidOperationException("Can't insert: " + String.Join("; ", Errors.ToArray()));
+            }
+            if (BeforeSave(ex))
+            {
+                using (dynamic conn = OpenConnection())
+                {
+                    var cmd = CreateInsertCommand(ex);
+                    cmd.Connection = conn;
+                    cmd.CommandText += "; SELECT SCOPE_IDENTITY()";
+                    ex.ID = cmd.ExecuteScalar();
+                    Inserted(ex);
+                }
+                return ex;
+            }
+            else
+            {
+                return null;
+            }
+        }
+
         /// <summary>
         /// Updates a record in the database. You can pass in an Anonymous object, an ExpandoObject,
         /// A regular old POCO, or a NameValueCollection from a Request.Form or Request.QueryString
