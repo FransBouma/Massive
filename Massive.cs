@@ -468,6 +468,32 @@ namespace Massive {
             } else throw new InvalidOperationException("No parsable object was sent in - could not divine any name/value pairs");
             return result;
         }
+        
+        public virtual DbCommand CreateUpdateAllCommand(dynamic expando) {
+            var settings = (IDictionary<string, object>)expando;
+            var sbKeys = new StringBuilder();
+            var stub = "UPDATE {0} SET {1}";
+            var args = new List<object>();
+            var result = CreateCommand(stub, null);
+            int counter = 0;
+            foreach (var item in settings) {
+                var val = item.Value;
+                if (!item.Key.Equals(PrimaryKeyField, StringComparison.OrdinalIgnoreCase) && item.Value != null) {
+                    result.AddParam(val);
+                    sbKeys.AppendFormat("{0} = @{1}, \r\n", item.Key, counter.ToString());
+                    counter++;
+                }
+            }
+            if (counter > 0) {
+                //add the key
+                result.AddParam(key);
+                //strip the last commas
+                var keys = sbKeys.ToString().Substring(0, sbKeys.Length - 4);
+                result.CommandText = string.Format(stub, TableName, keys);
+            } else throw new InvalidOperationException("No parsable object was sent in - could not divine any name/value pairs");
+            return result;
+        }
+        
         /// <summary>
         /// Removes one or more records from the DB according to the passed-in WHERE
         /// </summary>
@@ -525,6 +551,18 @@ namespace Massive {
             var result = 0;
             if (BeforeSave(ex)) {
                 result = Execute(CreateUpdateCommand(ex, key));
+                Updated(ex);
+            }
+            return result;
+        }
+        public virtual int UpdateAll(object o) {
+            var ex = o.ToExpando();
+            if (!IsValid(ex)) {
+                throw new InvalidOperationException("Can't Update: " + String.Join("; ", Errors.ToArray()));
+            }
+            var result = 0;
+            if (BeforeSave(ex)) {
+                result = Execute(CreateUpdateAllCommand(ex, key));
                 Updated(ex);
             }
             return result;
