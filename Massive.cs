@@ -575,11 +575,18 @@ namespace Massive {
         /// Updates a all records in the database that match where clause. You can pass in an Anonymous object, an ExpandoObject,
         /// A regular old POCO, or a NameValueCollection from a Request.Form or Request.QueryString. Where works same same as
         /// in All().
-        ///
-        /// LOOKOUT -> executing Update(new {}, null) will execute Update on all rows in table!
         /// </summary>
-        public virtual int Update(object o, string where = "", params object[] args)
+        /// <returns>
+        /// 0 - if no records updated or if you did fall into this method accenditently by passing null or "" to Update(object, object) method.
+        /// n - number of records updated
+        /// </returns>
+        public virtual int Update(object o, string where = "1=1", params object[] args)
         {
+            if (string.IsNullOrWhiteSpace(where))
+            {
+                return 0;
+            }
+
             var ex = o.ToExpando();
             if (!IsValid(ex)) {
                 throw new InvalidOperationException("Can't Update: " + String.Join("; ", Errors.ToArray()));
