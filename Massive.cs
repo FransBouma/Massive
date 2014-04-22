@@ -468,6 +468,48 @@ namespace Massive {
             } else throw new InvalidOperationException("No parsable object was sent in - could not divine any name/value pairs");
             return result;
         }
+        
+        /// <summary>
+        /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
+        /// </summary>
+        public virtual DbCommand CreateUpdateWhereCommand(dynamic expando, string where = "", params object[] args)
+        {
+            var settings = (IDictionary<string, object>)expando;
+            var sbKeys = new StringBuilder();
+            string stub;
+
+            if (!string.IsNullOrEmpty(where))
+            {
+                stub = where.Trim().StartsWith("where", StringComparison.OrdinalIgnoreCase) ? "UPDATE {0} SET {1} " : "UPDATE {0} SET {1} WHERE ";
+                stub += where;
+            }
+            else
+            {
+                stub = "UPDATE {0} SET {1}";
+            }
+            
+
+            var result = CreateCommand(stub, null, args);
+            // not sure if we should do regex over where to count params... @ followed by number
+            int counter = args.Length > 0 ? args.Length : 0;
+
+            foreach (var item in settings) {
+                var val = item.Value;
+                if (!item.Key.Equals(PrimaryKeyField, StringComparison.OrdinalIgnoreCase) && item.Value != null) {
+                    result.AddParam(val);
+                    sbKeys.AppendFormat("{0} = @{1}, \r\n", item.Key, counter.ToString());
+                    counter++;
+                }
+            }
+
+            if (counter > 0) {
+                //strip the last commas
+                var keys = sbKeys.ToString().Substring(0, sbKeys.Length - 4);
+                result.CommandText = string.Format(stub, TableName, keys);
+            } else throw new InvalidOperationException("No parsable object was sent in - could not divine any name/value pairs");
+            return result;
+        }
+        
         /// <summary>
         /// Removes one or more records from the DB according to the passed-in WHERE
         /// </summary>
@@ -525,6 +567,33 @@ namespace Massive {
             var result = 0;
             if (BeforeSave(ex)) {
                 result = Execute(CreateUpdateCommand(ex, key));
+                Updated(ex);
+            }
+            return result;
+        }
+        /// <summary>
+        /// Updates a all records in the database that match where clause. You can pass in an Anonymous object, an ExpandoObject,
+        /// A regular old POCO, or a NameValueCollection from a Request.Form or Request.QueryString. Where works same same as
+        /// in All().
+        /// </summary>
+        /// <returns>
+        /// 0 - if no records updated or if you did fall into this method accenditently by passing null or "" to Update(object, object) method.
+        /// n - number of records updated
+        /// </returns>
+        public virtual int Update(object o, string where = "1=1", params object[] args)
+        {
+            if (string.IsNullOrWhiteSpace(where))
+            {
+                return 0;
+            }
+
+            var ex = o.ToExpando();
+            if (!IsValid(ex)) {
+                throw new InvalidOperationException("Can't Update: " + String.Join("; ", Errors.ToArray()));
+            }
+            var result = 0;
+            if (BeforeSave(ex)) {
+                result = Execute(CreateUpdateWhereCommand(ex, where, args));
                 Updated(ex);
             }
             return result;
