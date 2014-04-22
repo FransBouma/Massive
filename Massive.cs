@@ -469,13 +469,30 @@ namespace Massive {
             return result;
         }
         
-        public virtual DbCommand CreateUpdateAllCommand(dynamic expando) {
+        /// <summary>
+        /// Creates a command for use with transactions - internal stuff mostly, but here for you to play with
+        /// </summary>
+        public virtual DbCommand CreateUpdateWhereCommand(dynamic expando, string where = "", params object[] args)
+        {
             var settings = (IDictionary<string, object>)expando;
             var sbKeys = new StringBuilder();
-            var stub = "UPDATE {0} SET {1}";
-            var args = new List<object>();
-            var result = CreateCommand(stub, null);
-            int counter = 0;
+            string stub;
+
+            if (!string.IsNullOrEmpty(where))
+            {
+                stub = where.Trim().StartsWith("where", StringComparison.OrdinalIgnoreCase) ? "UPDATE {0} SET {1} " : "UPDATE {0} SET {1} WHERE ";
+                stub += where;
+            }
+            else
+            {
+                stub = "UPDATE {0} SET {1}";
+            }
+            
+
+            var result = CreateCommand(stub, null, args);
+            // not sure if we should do regex over where to count params... @ followed by number
+            int counter = args.Length > 0 ? args.Length : 0;
+
             foreach (var item in settings) {
                 var val = item.Value;
                 if (!item.Key.Equals(PrimaryKeyField, StringComparison.OrdinalIgnoreCase) && item.Value != null) {
@@ -484,9 +501,8 @@ namespace Massive {
                     counter++;
                 }
             }
+
             if (counter > 0) {
-                //add the key
-                result.AddParam(key);
                 //strip the last commas
                 var keys = sbKeys.ToString().Substring(0, sbKeys.Length - 4);
                 result.CommandText = string.Format(stub, TableName, keys);
@@ -555,14 +571,20 @@ namespace Massive {
             }
             return result;
         }
-        public virtual int UpdateAll(object o) {
+        /// <summary>
+        /// Updates a all records in the database that match where clause. You can pass in an Anonymous object, an ExpandoObject,
+        /// A regular old POCO, or a NameValueCollection from a Request.Form or Request.QueryString. Where works same same as
+        /// in All().
+        /// </summary>
+        public virtual int UpdateWhere(object o, string where = "", params object[] args)
+        {
             var ex = o.ToExpando();
             if (!IsValid(ex)) {
                 throw new InvalidOperationException("Can't Update: " + String.Join("; ", Errors.ToArray()));
             }
             var result = 0;
             if (BeforeSave(ex)) {
-                result = Execute(CreateUpdateAllCommand(ex, key));
+                result = Execute(CreateUpdateWhereCommand(ex, where, args));
                 Updated(ex);
             }
             return result;
