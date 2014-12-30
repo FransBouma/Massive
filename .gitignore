@@ -1,0 +1,4 @@
+solution/*.suo
+solution/src/Massive (.NET 4.0 Client Profile)/bin/Debug/*
+solution/src/Massive (.NET 4.0 Client Profile)/bin/Release/*
+solution/src/Massive (.NET 4.0 Client Profile)/obj/*
