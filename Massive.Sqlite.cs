@@ -240,7 +240,7 @@ namespace Massive.SQLite
                 }
             }
         }
-      
+
 
         public virtual IEnumerable<dynamic> Query(string sql, DbConnection connection, params object[] args)
         {
@@ -498,7 +498,7 @@ namespace Massive.SQLite
                 sql += orderBy.Trim().StartsWith("order by", StringComparison.CurrentCultureIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
             return sql;
         }
-       
+
         /// <summary>
         /// Returns a dynamic PagedResult. Result properties are Items, TotalPages, and TotalRecords.
         /// </summary>
@@ -518,7 +518,7 @@ namespace Massive.SQLite
             }
             var sql = string.Format("select {0} FROM {3} {4} ORDER BY {2} ", columns, pageSize, orderBy, TableName, where);
             var pageStart = (currentPage - 1) * pageSize;
-            sql += string.Format(" LIMIT {0},{1}",pageStart, pageSize);
+            sql += string.Format(" LIMIT {0},{1}", pageStart, pageSize);
             countSQL += where;
             result.TotalRecords = Scalar(countSQL, args);
             result.TotalPages = result.TotalRecords / pageSize;
