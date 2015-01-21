@@ -512,7 +512,7 @@ namespace Massive.SQLite
                 }
             }
 
-            var sql = string.Format("select {0} FROM {3} {4} ORDER BY {2} ", columns, pageSize, orderBy, TableName, where);
+            var sql = string.Format("select {0} FROM {1} {2} ORDER BY {3} ", columns, TableName, where, orderBy);
             var pageStart = (currentPage - 1) * pageSize;
             sql += string.Format(" LIMIT {0},{1}", pageStart, pageSize);
             countSQL += where;
