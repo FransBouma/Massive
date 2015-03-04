@@ -1,6 +1,9 @@
 Massive is a Single File Database Lover. It's Better Than Chocolate. No Really.
 ===============================================================================
 
+Massive was started by [Rob Conery] and [has been transfered](https://twitter.com/robconery/status/573139252487323648) to Frans Bouma on March 4th, 2015. 
+
+Below is the original contents of this file, written by Rob Conery.
 
 I'm sharing this with the world because we need another way to access data - don't you think? Truthfully - I wanted to see if I could flex the C# 4 stuff and
 run up data access with a single file. I used to have this down to 350 lines, but you also needed to reference WebMatrix.Data. Now you don't - this is ready to roll 
