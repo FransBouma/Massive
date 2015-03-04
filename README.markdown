@@ -1,7 +1,7 @@
 Massive is a Single File Database Lover. It's Better Than Chocolate. No Really.
 ===============================================================================
 
-Massive was started by [Rob Conery] and [has been transfered](https://twitter.com/robconery/status/573139252487323648) to Frans Bouma on March 4th, 2015. 
+Massive was started by Rob Conery and [has been transfered](https://twitter.com/robconery/status/573139252487323648) to Frans Bouma on March 4th, 2015. 
 
 Below is the original contents of this file, written by Rob Conery.
 
