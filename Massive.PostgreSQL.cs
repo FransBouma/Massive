@@ -238,11 +238,7 @@ namespace Massive.PostgreSQL
         {
             using (var conn = OpenConnection())
             {
-                var rdr = CreateCommand(sql, conn, args).ExecuteReader();
-                while (rdr.Read())
-                {
-                    yield return rdr.RecordToExpando(); ;
-                }
+                return Query(sql,conn,args);
             }
         }
         public virtual IEnumerable<dynamic> Query(string sql, DbConnection connection, params object[] args)
