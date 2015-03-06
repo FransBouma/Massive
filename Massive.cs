@@ -195,7 +195,10 @@ namespace Massive {
         /// </summary>
         public virtual IEnumerable<dynamic> Query(string sql, params object[] args) {
             using (var conn = OpenConnection()) {
-                return Query(sql, conn, args);
+                var rdr = CreateCommand(sql, conn, args).ExecuteReader();
+                while (rdr.Read()) {
+                    yield return rdr.RecordToExpando(); ;
+                }
             }
         }
         public virtual IEnumerable<dynamic> Query(string sql, DbConnection connection, params object[] args) {
