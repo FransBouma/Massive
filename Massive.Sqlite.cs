@@ -70,11 +70,16 @@ namespace Massive.SQLite
         }
         public static dynamic RecordToExpando(this IDataReader rdr)
         {
-            dynamic e = new ExpandoObject();
-            var d = e as IDictionary<string, object>;
-            for (int i = 0; i < rdr.FieldCount; i++)
-                d.Add(rdr.GetName(i), DBNull.Value.Equals(rdr[i]) ? null : rdr[i]);
-            return e;
+			dynamic e = new ExpandoObject();
+			var d = e as IDictionary<string, object>;
+			object[] values = new object[rdr.FieldCount];
+			rdr.GetValues(values);
+			for(int i = 0; i < values.Length; i++)
+			{
+				var v = values[i];
+				d.Add(rdr.GetName(i), DBNull.Value.Equals(v) ? null : v);
+			}
+			return e;
         }
         /// <summary>
         /// Turns the object into an ExpandoObject
