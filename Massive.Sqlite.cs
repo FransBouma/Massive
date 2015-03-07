@@ -7,7 +7,6 @@ using System.Data.Common;
 using System.Dynamic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Massive.SQLite
 {
