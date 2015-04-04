@@ -301,13 +301,15 @@ namespace Massive.PostgreSQL
             var commands = new List<DbCommand>();
             foreach (var item in things)
             {
+                var ex = item.ToExpando();
+
                 if (HasPrimaryKey(item))
                 {
-                    commands.Add(CreateUpdateCommand(item, GetPrimaryKey(item)));
+                    commands.Add(CreateUpdateCommand(ex, GetPrimaryKey(ex)));
                 }
                 else
                 {
-                    commands.Add(CreateInsertCommand(item));
+                    commands.Add(CreateInsertCommand(ex));
                 }
             }
             return commands;
