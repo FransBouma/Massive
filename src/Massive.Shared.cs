@@ -142,6 +142,22 @@ namespace Massive
 
 
 		/// <summary>
+		/// Gets a default value for the column with the name specified as defined in the schema.
+		/// </summary>
+		/// <param name="columnName">Name of the column.</param>
+		/// <returns></returns>
+		public dynamic DefaultValue(string columnName)
+		{
+			var column = GetColumn(columnName);
+			if(column == null)
+			{
+				return null;
+			}
+			return GetDefaultValue(column);
+		}
+
+
+		/// <summary>
 		/// Gets or creates a new, empty DynamicModel on the DB pointed to by the connectionstring stored under the name specified.
 		/// </summary>
 		/// <param name="connectionStringName">Name of the connection string to load from the config file.</param>
@@ -209,11 +225,15 @@ namespace Massive
 		{
 			using(var conn = OpenConnection())
 			{
-				var rdr = CreateCommand(sql, conn, args).ExecuteReader();
-				while(rdr.Read())
+				using(var rdr = CreateCommand(sql, conn, args).ExecuteReader())
 				{
-					yield return rdr.RecordToExpando(); ;
+					while(rdr.Read())
+					{
+						yield return rdr.RecordToExpando();
+					}
+					rdr.Close();
 				}
+				conn.Close();
 			}
 		}
 
@@ -233,6 +253,7 @@ namespace Massive
 				{
 					yield return rdr.RecordToExpando(); ;
 				}
+				rdr.Close();
 			}
 		}
 
@@ -249,6 +270,7 @@ namespace Massive
 			using(var conn = OpenConnection())
 			{
 				result = CreateCommand(sql, conn, args).ExecuteScalar();
+				conn.Close();
 			}
 			return result;
 		}
@@ -334,6 +356,7 @@ namespace Massive
 					}
 					tx.Commit();
 				}
+				conn.Close();
 			}
 			return result;
 		}
@@ -610,7 +633,7 @@ namespace Massive
 			}
 			if(BeforeSave(ex))
 			{
-				using(dynamic conn = OpenConnection())
+				using(var conn = OpenConnection())
 				{
 					var cmd = CreateInsertCommand(ex);
 					cmd.Connection = conn;
@@ -618,6 +641,7 @@ namespace Massive
 					cmd.CommandText = this.GetIdentityRetrievalScalarStatement();
 					ex.ID = cmd.ExecuteScalar();
 					Inserted(ex);
+					conn.Close();
 				}
 				return ex;
 			}
@@ -803,18 +827,19 @@ namespace Massive
 		/// <summary>
 		/// Executes a Count(*) query on the Tablename specified using the where clause specified
 		/// </summary>
-		/// <param name="tableName">Name of the table to execute the count query on.</param>
+		/// <param name="tableName">Name of the table to execute the count query on. By default it's this table's name</param>
 		/// <param name="where">The where clause. Default is empty string. Parameters have to be numbered starting with 0, for each value in args.</param>
 		/// <param name="args">The parameters used in the where clause.</param>
 		/// <returns>number of rows returned after executing the count query</returns>
-		public int Count(string tableName, string where = "", params object[] args)
+		public int Count(string tableName = "", string where = "", params object[] args)
 		{
+			var tableNameToUse = string.IsNullOrEmpty(tableName) ? this.TableName : tableName;
 			var scalarQueryPattern = this.GetCountRowQueryPattern();
 			if(!string.IsNullOrEmpty(where))
 			{
 				scalarQueryPattern += where.Trim().StartsWith("WHERE", StringComparison.OrdinalIgnoreCase) ? where : "WHERE " + where;
 			}
-			return (int)Scalar(string.Format(scalarQueryPattern, tableName), args);
+			return (int)Scalar(string.Format(scalarQueryPattern, tableNameToUse), args);
 		}
 
 
@@ -892,7 +917,7 @@ namespace Massive
 					break;
 				default:
 					//build the SQL
-					var justOne = op.StartsWith("First") || op.StartsWith("Last") || op.StartsWith("Get") || op.StartsWith("Single");
+					var justOne = op.StartsWith("First") || op.StartsWith("Last") || op.StartsWith("Get") || op.StartsWith("Find") || op.StartsWith("Single");
 					//Be sure to sort by DESC on the PK (PK Sort is the default)
 					if(op.StartsWith("Last"))
 					{
@@ -995,6 +1020,19 @@ namespace Massive
 		{
 			return string.Format("{0} = {1}", this.PrimaryKeyField, this.PrefixParameterName("0"));
 		}
+
+
+
+		/// <summary>
+		/// Gets the column definition of the column specified. This is a dynamic which contains all the fields of the schema row obtained for this table. 
+		/// </summary>
+		/// <param name="columnName">Name of the column.</param>
+		/// <returns></returns>
+		private dynamic GetColumn(string columnName)
+		{
+			return this.Schema.FirstOrDefault(c => string.Compare(this.GetColumnName(c), columnName, StringComparison.InvariantCultureIgnoreCase) == 0);
+		}
+
 
 		#region OBSOLETE CRUFT
 #warning SEE #233.

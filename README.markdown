@@ -69,11 +69,7 @@ You can also run ad-hoc queries as needed:
 var result = tbl.Query("SELECT * FROM Categories");
 ```
 
-This will pull categories and enumerate the results - streaming them as opposed to bulk-fetching them (thanks to Jeroen Haegebaert for the code). If you need to run a Fetch - you can:
-
-```csharp
-var result = tbl.Fetch("SELECT * FROM Categories");
-```
+This will pull categories and enumerate the results - streaming them as opposed to bulk-fetching them (thanks to Jeroen Haegebaert for the code). 
 
 If you want to have a paged result set - you can:
 
@@ -83,7 +79,7 @@ var result = tbl.Paged(where: "UnitPrice > 20", currentPage:2, pageSize: 20);
 
 In this example, ALL of the arguments are optional and default to reasonable values. CurrentPage defaults to 1, pageSize defaults to 20, where defaults to nothing.
 
-What you get back is `IEnumerable<ExpandoObject>` - meaning that it's malleable and exciting. It will take the shape of whatever you return in your query, and it will have properties and so on. You can assign events to it, you can create delegates on the fly. You can give it chocolate, and it will kiss you.
+What you get back is a Dynamic with three properties: Items, TotalPages and TotalRecords. Items is a Query which is lazily evaluated and you can enumerate it after casting it to `IEnumerable<dynamic>`. TotalPages is the total number of pages in the complete result set and TotalRecords is the total number of records in the result set. What's in the Items collection is totally up to you, it's dynamic: meaning that it's malleable and exciting. It will take the shape of whatever you return in your query, and it will have properties and so on. You can assign events to it, you can create delegates on the fly. You can give it chocolate, and it will kiss you.
 
 That's pretty much it. One thing I really like is the groovy DSL that Massive uses - it looks just like SQL. If you want, you can use this DSL to query the database:
 

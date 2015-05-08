@@ -59,7 +59,9 @@ namespace Massive
 		/// <summary>
 		/// Gets a default value for the column as defined in the schema.
 		/// </summary>
-		public dynamic DefaultValue(dynamic column)
+		/// <param name="column">The column.</param>
+		/// <returns></returns>
+		private dynamic GetDefaultValue(dynamic column)
 		{
 			string defaultValue = column.COLUMN_DEFAULT;
 			if(String.IsNullOrEmpty(defaultValue))
@@ -71,7 +73,7 @@ namespace Massive
 			{
 				case "getdate()":
 				case "(getdate())":
-					result = DateTime.Now.ToShortDateString();
+					result = DateTime.Now;
 					break;
 				case "newid()":
 					result = Guid.NewGuid().ToString();
@@ -170,7 +172,7 @@ namespace Massive
 		/// <returns></returns>
 		protected virtual string GetCountRowQueryPattern()
 		{
-			return "SELECT COUNT(*) FROM {0}";
+			return "SELECT COUNT(*) FROM {0} ";
 		}
 
 
