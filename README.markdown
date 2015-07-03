@@ -3,6 +3,12 @@ Massive is a Single File Database Lover. It's Better Than Chocolate. No Really.
 
 Massive was started by Rob Conery and [has been transfered](https://twitter.com/robconery/status/573139252487323648) to Frans Bouma on March 4th, 2015. 
 
+I'm working on Massive from time to time, this work is done in the [Refactoring branch](https://github.com/FransBouma/Massive/tree/Refactoring). To see what's new / breaking in this new version, please consult the [Wiki](https://github.com/FransBouma/Massive/wiki). 
+
+## Current Status
+Current status is that tests work for all features of Massive and refactoring has been completed for SQLServer, but not yet for other databases. If you're using Oracle, PostgreSql or SQLite, please keep using the source in the Master branch. 
+
+## Original readme contents / Massive usage
 Below is the original contents of this file, written by Rob Conery.
 
 I'm sharing this with the world because we need another way to access data - don't you think? Truthfully - I wanted to see if I could flex the C# 4 stuff and
