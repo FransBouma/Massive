@@ -3,6 +3,12 @@ Massive is a Single File Database Lover. It's Better Than Chocolate. No Really.
 
 Massive was started by Rob Conery and [has been transfered](https://twitter.com/robconery/status/573139252487323648) to Frans Bouma on March 4th, 2015. 
 
+I'm working on Massive from time to time, this work is done in the [Refactoring branch](https://github.com/FransBouma/Massive/tree/Refactoring). To see what's new / breaking in this new version, please consult the [Wiki](https://github.com/FransBouma/Massive/wiki). 
+
+## Current Status
+Current status is that tests work for all features of Massive and refactoring has been completed for SQLServer, but not yet for other databases. If you're using Oracle, PostgreSql or SQLite, please keep using the source in the Master branch. 
+
+## Original readme contents / Massive usage
 Below is the original contents of this file, written by Rob Conery.
 
 I'm sharing this with the world because we need another way to access data - don't you think? Truthfully - I wanted to see if I could flex the C# 4 stuff and
@@ -69,11 +75,7 @@ You can also run ad-hoc queries as needed:
 var result = tbl.Query("SELECT * FROM Categories");
 ```
 
-This will pull categories and enumerate the results - streaming them as opposed to bulk-fetching them (thanks to Jeroen Haegebaert for the code). If you need to run a Fetch - you can:
-
-```csharp
-var result = tbl.Fetch("SELECT * FROM Categories");
-```
+This will pull categories and enumerate the results - streaming them as opposed to bulk-fetching them (thanks to Jeroen Haegebaert for the code). 
 
 If you want to have a paged result set - you can:
 
@@ -83,7 +85,7 @@ var result = tbl.Paged(where: "UnitPrice > 20", currentPage:2, pageSize: 20);
 
 In this example, ALL of the arguments are optional and default to reasonable values. CurrentPage defaults to 1, pageSize defaults to 20, where defaults to nothing.
 
-What you get back is `IEnumerable<ExpandoObject>` - meaning that it's malleable and exciting. It will take the shape of whatever you return in your query, and it will have properties and so on. You can assign events to it, you can create delegates on the fly. You can give it chocolate, and it will kiss you.
+What you get back is a Dynamic with three properties: Items, TotalPages and TotalRecords. Items is a Query which is lazily evaluated and you can enumerate it after casting it to `IEnumerable<dynamic>`. TotalPages is the total number of pages in the complete result set and TotalRecords is the total number of records in the result set. What's in the Items collection is totally up to you, it's dynamic: meaning that it's malleable and exciting. It will take the shape of whatever you return in your query, and it will have properties and so on. You can assign events to it, you can create delegates on the fly. You can give it chocolate, and it will kiss you.
 
 That's pretty much it. One thing I really like is the groovy DSL that Massive uses - it looks just like SQL. If you want, you can use this DSL to query the database:
 
@@ -121,8 +123,10 @@ Insert works the same way:
 ```csharp
 //pretend we have a class like Products but it's called Categories
 var table = new Categories();
-//do it up - the new ID will be returned from the query
-var newID = table.Insert(new {CategoryName = "Buck Fify Stuff", Description = "Things I like"});
+//do it up - the inserted object will be returned from the query as expando 
+var inserted = table.Insert(new {CategoryName = "Buck Fify Stuff", Description = "Things I like"});
+// the new PK value is in the field specified as PrimaryKeyField in the constructor of Categories. 
+var newID = inserted.CategoryID;
 ```
 
 Yippee Skippy! Now we get to the fun part - and one of the reasons I had to spend 150 more lines of code on something you probably won't care about. What happens when we send a whole bunch of goodies to the database at once!
