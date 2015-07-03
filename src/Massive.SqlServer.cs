@@ -157,12 +157,23 @@ namespace Massive
 
 
 		/// <summary>
+		/// Gets the name of the sequence to use for the PrimaryKeyField set. If PrimaryKeyFieldIsSequenced is set to true (default), this sequence is used in the Identity retrieval
+		/// scalar statement. By default it's 'SCOPE_IDENTITY()'. If you want to use @@IDENTITY, override this method and return "@@IDENTITY" instead.
+		/// </summary>
+		/// <returns></returns>
+		protected virtual string GetSequenceName()
+		{
+			return "SCOPE_IDENTITY()";
+		}
+
+
+		/// <summary>
 		/// Gets the sql statement to use for obtaining the identity value of the last insert.
 		/// </summary>
 		/// <returns></returns>
 		protected virtual string GetIdentityRetrievalScalarStatement()
 		{
-			return "SELECT SCOPE_IDENTITY() as newID";
+			return string.Format("SELECT {0} as newID", GetSequenceName());
 		}
 
 

@@ -136,9 +136,38 @@ namespace Massive
 	/// </summary>
 	public partial class DynamicModel : DynamicObject
 	{
+		#region Members
 		private DbProviderFactory _factory;
 		private string _connectionString;
 		private IEnumerable<dynamic> _schema;
+		#endregion
+
+
+		/// <summary>
+		/// Initializes a new instance of the <see cref="DynamicModel" /> class.
+		/// </summary>
+		/// <param name="connectionStringName">Name of the connection string to load from the config file.</param>
+		/// <param name="tableName">Name of the table to read the meta data for. Can be left empty, in which case the name of this type is used.</param>
+		/// <param name="primaryKeyField">The primary key field. Can be left empty, in which case 'ID' is used.</param>
+		/// <param name="descriptorField">The descriptor field, if the table is a lookup table. Descriptor field is the field containing the textual representation of the value
+		/// in primaryKeyField.</param>
+		/// <param name="primaryKeyFieldIsSequenced">Gets or sets a value indicating whether the field specified in primaryKeyField is an identity / sequenced field (true, default) or not.</param>
+		public DynamicModel(string connectionStringName, string tableName = "", string primaryKeyField = "", string descriptorField = "", bool primaryKeyFieldIsSequenced = true)
+		{
+			this.TableName = string.IsNullOrWhiteSpace(tableName) ? this.GetType().Name : tableName;
+			this.PrimaryKeyField = string.IsNullOrWhiteSpace(primaryKeyField) ? "ID" : primaryKeyField;
+			this.PrimaryKeyFieldIsSequenced = primaryKeyFieldIsSequenced;
+			this.DescriptorField = descriptorField;
+			var _providerName = this.DbProviderFactoryName;
+			this.Errors = new List<string>();
+
+			if(!string.IsNullOrWhiteSpace(ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName))
+			{
+				_providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
+			}
+			_factory = DbProviderFactories.GetFactory(_providerName);
+			_connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
+		}
 
 
 		/// <summary>
@@ -165,31 +194,6 @@ namespace Massive
 		public static DynamicModel Open(string connectionStringName)
 		{
 			return new DynamicModel(connectionStringName);
-		}
-
-
-		/// <summary>
-		/// Initializes a new instance of the <see cref="DynamicModel"/> class.
-		/// </summary>
-		/// <param name="connectionStringName">Name of the connection string to load from the config file.</param>
-		/// <param name="tableName">Name of the table to read the meta data for. Can be left empty, in which case the name of this type is used.</param>
-		/// <param name="primaryKeyField">The primary key field. Can be left empty, in which case 'ID' is used.</param>
-		/// <param name="descriptorField">The descriptor field, if the table is a lookup table. Descriptor field is the field containing the textual representation of the value
-		/// in primaryKeyField.</param>
-		public DynamicModel(string connectionStringName, string tableName = "", string primaryKeyField = "", string descriptorField = "")
-		{
-			this.TableName = string.IsNullOrWhiteSpace(tableName) ? this.GetType().Name : tableName;
-			this.PrimaryKeyField = string.IsNullOrWhiteSpace(primaryKeyField) ? "ID" : primaryKeyField;
-			this.DescriptorField = descriptorField;
-			var _providerName = this.DbProviderFactoryName;
-			this.Errors = new List<string>();
-
-			if(!string.IsNullOrWhiteSpace(ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName))
-			{
-				_providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
-			}
-			_factory = DbProviderFactories.GetFactory(_providerName);
-			_connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
 		}
 
 
@@ -505,6 +509,23 @@ namespace Massive
 
 
 		/// <summary>
+		/// Executes a set of objects as Insert commands, within a transaction. These objects can be POCOs, Anonymous, NameValueCollections, 
+		/// or Expandos. 
+		/// </summary>
+		/// <param name="things">The objects to save within a single transaction.</param>
+		/// <returns>the sum of the values returned by the database when executing each command.</returns>
+		/// <remarks>Sequenced PK fields aren't read back from the DB, meaning the objects in 'things' aren't updated with the sequenced PK values.</remarks>
+		public virtual int SaveAsNew(params object[] things)
+		{
+			if(things.Any(item => !IsValid(item)))
+			{
+				throw new InvalidOperationException("Can't save this item: " + String.Join("; ", this.Errors.ToArray()));
+			}
+			return Execute(things.Select(t => CreateInsertCommand(t.ToExpando())).Cast<DbCommand>().ToList());
+		}
+
+
+		/// <summary>
 		/// Creates a DbCommand with an insert statement to insert a new row in the table, using the values in the passed in expando.
 		/// </summary>
 		/// <param name="expando">The expando object which contains per field the value to insert.</param>
@@ -567,6 +588,7 @@ namespace Massive
 			if(!string.IsNullOrWhiteSpace(@where))
 			{
 				updateQueryPattern += @where.Trim().StartsWith("WHERE", StringComparison.OrdinalIgnoreCase) ? string.Empty : " WHERE ";
+				updateQueryPattern += @where;
 			}
 			var result = CreateCommand(updateQueryPattern, null, args);
 			int counter = args.Length > 0 ? args.Length : 0;
@@ -623,7 +645,7 @@ namespace Massive
 		/// A regular old POCO, or a NameValueColletion from a Request.Form or Request.QueryString
 		/// </summary>
 		/// <param name="o">The object to insert.</param>
-		/// <returns>the object inserted as expando</returns>
+		/// <returns>the object inserted as expando. If the PrimaryKeyField is an identity field, it's set in the returned object to the value it received at insert.</returns>
 		public virtual dynamic Insert(object o)
 		{
 			var ex = o.ToExpando();
@@ -635,11 +657,18 @@ namespace Massive
 			{
 				using(var conn = OpenConnection())
 				{
-					var cmd = CreateInsertCommand(ex);
+					DbCommand cmd = CreateInsertCommand(ex);
 					cmd.Connection = conn;
-					cmd.ExecuteNonQuery();
-					cmd.CommandText = this.GetIdentityRetrievalScalarStatement();
-					ex.ID = cmd.ExecuteScalar();
+					if(this.PrimaryKeyFieldIsSequenced)
+					{
+						// simply batch the identity scalar query to the main insert query and execute them as one scalar query. This will both execute the statement and return the sequence value
+						cmd.CommandText += ";" + this.GetIdentityRetrievalScalarStatement();
+						((IDictionary<string, object>)ex)[this.PrimaryKeyField] = Convert.ToInt32(cmd.ExecuteScalar());
+					}
+					else
+					{
+						cmd.ExecuteNonQuery();
+					}
 					Inserted(ex);
 					conn.Close();
 				}
@@ -1085,6 +1114,10 @@ namespace Massive
 		/// Gets or sets the primary key field. If empty, "ID" is used.
 		/// </summary>
 		public virtual string PrimaryKeyField { get; set; }
+		/// <summary>
+		/// Gets or sets a value indicating whether the field specified in PrimaryKeyField is an identity / sequenced field (true, default) or not.
+		/// </summary>
+		public virtual bool PrimaryKeyFieldIsSequenced { get; set; }
 		/// <summary>
 		/// Gets or sets the descriptor field name, which is useful if the table is a lookup table. Descriptor field is the field containing the textual representation of the value
 		/// in PrimaryKeyField.

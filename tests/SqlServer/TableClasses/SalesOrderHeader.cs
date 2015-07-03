@@ -13,7 +13,7 @@ namespace Massive.Tests.TableClasses
 
 
 		public SalesOrderHeader(bool includeSchema) :
-			base(TestConstants.ConnectionStringName, includeSchema ? "Sales.SalesOrderHeader" : "SalesOrderHeader", "SalesOrderID")
+			base(TestConstants.ReadTestConnectionStringName, includeSchema ? "Sales.SalesOrderHeader" : "SalesOrderHeader", "SalesOrderID")
 		{
 		}
 

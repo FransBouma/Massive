@@ -117,8 +117,10 @@ Insert works the same way:
 ```csharp
 //pretend we have a class like Products but it's called Categories
 var table = new Categories();
-//do it up - the new ID will be returned from the query
-var newID = table.Insert(new {CategoryName = "Buck Fify Stuff", Description = "Things I like"});
+//do it up - the inserted object will be returned from the query as expando 
+var inserted = table.Insert(new {CategoryName = "Buck Fify Stuff", Description = "Things I like"});
+// the new PK value is in the field specified as PrimaryKeyField in the constructor of Categories. 
+var newID = inserted.CategoryID;
 ```
 
 Yippee Skippy! Now we get to the fun part - and one of the reasons I had to spend 150 more lines of code on something you probably won't care about. What happens when we send a whole bunch of goodies to the database at once!
