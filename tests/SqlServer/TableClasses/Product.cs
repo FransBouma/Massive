@@ -7,7 +7,7 @@ namespace Massive.Tests.TableClasses
 {
 	public class Product : DynamicModel
 	{
-		public Product() : this(true)
+		public Product() : this(includeSchema:true)
 		{
 		}
 

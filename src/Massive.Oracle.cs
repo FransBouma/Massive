@@ -235,14 +235,14 @@ namespace Massive
 		{
 			// 1) create the main query,
 			// 2) wrap it with the paging query constructs. This is done for both the count and the paging query. 
-			var orderByClauseFragment = string.IsNullOrEmpty(orderByClause) ? string.Format("ORDER BY {0}", string.IsNullOrEmpty(primaryKeyField) ? PrimaryKeyField : primaryKeyField) 
+			var orderByClauseFragment = string.IsNullOrEmpty(orderByClause) ? string.Format(" ORDER BY {0}", string.IsNullOrEmpty(primaryKeyField) ? PrimaryKeyField : primaryKeyField) 
 																			: ReadifyOrderByClause(orderByClause);
 			var coreQuery = string.Format(this.GetSelectQueryPattern(0, ReadifyWhereClause(whereClause), orderByClauseFragment), columns, string.IsNullOrEmpty(sql) ? this.TableName : sql);
 			dynamic toReturn = new ExpandoObject();
-			toReturn.CountQuery = string.Format(this.GetCountRowQueryPattern(), coreQuery);
+			toReturn.CountQuery = string.Format("SELECT COUNT(*) FROM ({0})", coreQuery);
 			var pageStart = (currentPage - 1) * pageSize;
 			// wrap the main query with a full select and the rownum predicates. 
-			toReturn.MainQuery = string.Format("SELECT * FROM ({0}) a WHERE rownum > {1} and rownum <= {2}", coreQuery, pageStart, (pageStart + pageSize));
+			toReturn.MainQuery = string.Format("SELECT * FROM (SELECT a.*, rownum r___ FROM ({0}) a WHERE rownum <= {1}) WHERE r___ > {2}", coreQuery, (pageStart + pageSize), pageStart);
 			return toReturn;
 		}
 
@@ -253,7 +253,9 @@ namespace Massive
 		/// </summary>
 		/// <remarks>By default it uses ODP.NET's unmanaged CLI wrapping ADO.NET provider. To use another provider, e.g. the managed ODP.NET provider or another 3rd party provider, 
 		/// please override this property and return the known factory name instead. For the ODP.NET managed provider, return "Oracle.ManagedDataAccess.Client".
-		/// Microsoft has deprecated their Oracle ADO.NET provider, don't use that one anymore.</remarks>
+		/// Microsoft has deprecated their Oracle ADO.NET provider, don't use that one anymore.
+		/// It's also possible to set this provider with the connection string in the application's config file. 
+		/// </remarks>
 		protected virtual string DbProviderFactoryName
 		{
 			get { return "Oracle.DataAccess.Client"; }

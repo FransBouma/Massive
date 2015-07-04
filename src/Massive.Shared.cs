@@ -1137,6 +1137,15 @@ namespace Massive
 		/// Contains the error messages collected since the last Validate.
 		/// </summary>
 		public IList<string> Errors { get; protected set; }
+		/// <summary>
+		/// Gets or sets the connection string used. By default, it's read from the config file. If no config file can be used, set the connection string using this property prior to 
+		/// executing any query.
+		/// </summary>
+		public string ConnectionString
+		{
+			get { return _connectionString; }
+			set { _connectionString = value; }
+		}
 		#endregion
 	}
 }

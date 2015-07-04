@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
 VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Massive.Tests", "SqlServer\Massive.Tests.SqlServer.csproj", "{A7C1CA51-F35B-4B93-BFF1-55E04BA74FC5}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Massive.Tests.SqlServer", "SqlServer\Massive.Tests.SqlServer.csproj", "{A7C1CA51-F35B-4B93-BFF1-55E04BA74FC5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Massive.Tests.Oracle", "Oracle\Massive.Tests.Oracle.csproj", "{6497FB15-EA44-48E5-98B8-31C3D438F170}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{A7C1CA51-F35B-4B93-BFF1-55E04BA74FC5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A7C1CA51-F35B-4B93-BFF1-55E04BA74FC5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A7C1CA51-F35B-4B93-BFF1-55E04BA74FC5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6497FB15-EA44-48E5-98B8-31C3D438F170}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6497FB15-EA44-48E5-98B8-31C3D438F170}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6497FB15-EA44-48E5-98B8-31C3D438F170}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6497FB15-EA44-48E5-98B8-31C3D438F170}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

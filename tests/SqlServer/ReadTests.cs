@@ -39,7 +39,7 @@ namespace Massive.Tests
 			foreach(var r in allRows)
 			{
 				count++;
-				Assert.AreEqual(26, ((IDictionary<string, object>)r).Count);
+				Assert.AreEqual(26, ((IDictionary<string, object>)r).Count);		// # of fields fetched should be 26
 			}
 			Assert.AreEqual(31465, count);
 		}
@@ -97,12 +97,12 @@ namespace Massive.Tests
 		public void All_WhereSpecification_OrderBySpecification()
 		{
 			var soh = new SalesOrderHeader();
-			var allRows = soh.All(orderBy: "CustomerID DESC", where: "WHERE CustomerId=@0", args: 30052).ToList();
+			var allRows = soh.All(orderBy: "SalesOrderID DESC", where: "WHERE CustomerId=@0", args: 30052).ToList();
 			Assert.AreEqual(4, allRows.Count);
 			int previous = int.MaxValue;
 			foreach(var r in allRows)
 			{
-				int current = r.CustomerID;
+				int current = r.SalesOrderID;
 				Assert.IsTrue(current <= previous);
 				previous = current;
 			}
@@ -208,7 +208,7 @@ namespace Massive.Tests
 		public void Paged_NoSpecification()
 		{
 			var soh = new SalesOrderHeader();
-			// no order by, so in theory this is useless.
+			// no order by, so in theory this is useless. It will order on PK though
 			var page2 = soh.Paged(currentPage:2, pageSize: 30);
 			var pageItems = ((IEnumerable<dynamic>)page2.Items).ToList();
 			Assert.AreEqual(30, pageItems.Count);
