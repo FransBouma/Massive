@@ -16,8 +16,8 @@ namespace Massive.Tests.Oracle
 	/// in the project settings.<br/>
 	/// These tests use the SCOTT test DB shipped by Oracle. Your values may vary though. </remarks>
 	[TestFixture]
-    public class ReadWriteTests
-    {
+	public class ReadWriteTests
+	{
 		[TestFixtureSetUp]
 		public void Setup()
 		{
