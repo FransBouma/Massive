@@ -1,12 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Specialized;
-using System.Configuration;
-using System.Data;
 using System.Data.Common;
 using System.Dynamic;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Text;
 
 namespace Massive
@@ -56,6 +52,19 @@ namespace Massive
 	/// </summary>
 	public partial class DynamicModel
 	{
+		#region Constants
+		// Mandatory constants every DB has to define. 
+		/// <summary>
+		/// The default sequence name for initializing the pk sequence name value in the ctor. 
+		/// </summary>
+		private const string _defaultSequenceName = "SCOPE_IDENTITY()";
+		/// <summary>
+		/// Flag to signal whether the sequence retrieval call (if any) is executed before the insert query (true) or after (false). Not a const, to avoid warnings. 
+		/// </summary>
+		private bool _sequenceValueCallsBeforeMainInsert = false;
+		#endregion
+
+
 		/// <summary>
 		/// Gets a default value for the column as defined in the schema.
 		/// </summary>
@@ -64,7 +73,7 @@ namespace Massive
 		private dynamic GetDefaultValue(dynamic column)
 		{
 			string defaultValue = column.COLUMN_DEFAULT;
-			if(String.IsNullOrEmpty(defaultValue))
+			if(string.IsNullOrEmpty(defaultValue))
 			{
 				return null;
 			}
@@ -83,53 +92,6 @@ namespace Massive
 					break;
 			}
 			return result;
-		}
-
-
-		/// <summary>
-		/// Builds a paging query and count query pair. 
-		/// </summary>
-		/// <param name="sql">The SQL statement to build the query pair for. Can be left empty, in which case the table name from the schema is used</param>
-		/// <param name="primaryKeyField">The primary key field. Used for ordering. If left empty the defined PK field is used</param>
-		/// <param name="where">The where clause. Default is empty string.</param>
-		/// <param name="orderBy">The order by clause. Default is empty string.</param>
-		/// <param name="columns">The columns to use in the project. Default is '*' (all columns, in table defined order).</param>
-		/// <param name="pageSize">Size of the page. Default is 20</param>
-		/// <param name="currentPage">The current page. 1-based. Default is 1.</param>
-		/// <param name="args">The values to use as parameters.</param>
-		/// <returns>ExpandoObject with two properties: MainQuery for fetching the specified page and CountQuery for determining the total number of rows in the resultset</returns>
-		private dynamic BuildPagingQueryPair(string sql = "", string primaryKeyField = "", string where = "", string orderBy = "", string columns = "*", int pageSize = 20, 
-											  int currentPage = 1, params object[] args)
-		{
-			var countSQL = string.IsNullOrEmpty(sql) ? string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName) 
-													 : string.Format("SELECT COUNT({0}) FROM ({1}) AS PagedTable", primaryKeyField, sql);
-			if(String.IsNullOrEmpty(orderBy))
-			{
-				orderBy = string.IsNullOrEmpty(primaryKeyField) ? PrimaryKeyField : primaryKeyField;
-			}
-			if(!string.IsNullOrEmpty(where))
-			{
-				if(!where.Trim().StartsWith("WHERE", StringComparison.CurrentCultureIgnoreCase))
-				{
-					where = " WHERE " + where;
-				}
-			}
-			var query = string.Empty;
-			if(!string.IsNullOrEmpty(sql))
-			{
-				query = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {1}) AS Row, {0} FROM ({2}) AS PagedTable {3}) AS Paged ", columns, orderBy, sql, where);
-			}
-			else
-			{
-				query = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {1}) AS Row, {0} FROM {2} {3}) AS Paged ", columns, orderBy, TableName, where);
-			}
-			var pageStart = (currentPage - 1) * pageSize;
-			query += string.Format(" WHERE Row > {0} AND Row <={1}", pageStart, (pageStart + pageSize));
-			countSQL += where;
-			dynamic toReturn = new ExpandoObject();
-			toReturn.MainQuery = query;
-			toReturn.CountQuery = countSQL;
-			return toReturn;
 		}
 
 
@@ -157,23 +119,12 @@ namespace Massive
 
 
 		/// <summary>
-		/// Gets the name of the sequence to use for the PrimaryKeyField set. If PrimaryKeyFieldIsSequenced is set to true (default), this sequence is used in the Identity retrieval
-		/// scalar statement. By default it's 'SCOPE_IDENTITY()'. If you want to use @@IDENTITY, override this method and return "@@IDENTITY" instead.
-		/// </summary>
-		/// <returns></returns>
-		protected virtual string GetSequenceName()
-		{
-			return "SCOPE_IDENTITY()";
-		}
-
-
-		/// <summary>
 		/// Gets the sql statement to use for obtaining the identity value of the last insert.
 		/// </summary>
 		/// <returns></returns>
 		protected virtual string GetIdentityRetrievalScalarStatement()
 		{
-			return string.Format("SELECT {0} as newID", GetSequenceName());
+			return string.IsNullOrEmpty(_primaryKeyFieldSequence) ? string.Empty : string.Format("SELECT {0} as newID", _primaryKeyFieldSequence);
 		}
 
 
@@ -197,15 +148,19 @@ namespace Massive
 			return "@" + rawName;
 		}
 
-		
+
 		/// <summary>
 		/// Gets the select query pattern, to use for building select queries. The pattern should include as place holders: {0} for project list, {1} for the source (FROM clause).
 		/// </summary>
 		/// <param name="limit">The limit for the resultset. 0 means no limit.</param>
-		/// <returns>string pattern which is usable to build select queries.</returns>
-		protected virtual string GetSelectQueryPattern(int limit)
+		/// <param name="whereClause">The where clause. Expected to have a prefix space if not empty</param>
+		/// <param name="orderByClause">The order by clause. Expected to have a prefix space if not empty</param>
+		/// <returns>
+		/// string pattern which is usable to build select queries.
+		/// </returns>
+		protected virtual string GetSelectQueryPattern(int limit, string whereClause, string orderByClause)
 		{
-			return limit > 0 ? "SELECT TOP " + limit + " {0} FROM {1} " : "SELECT {0} FROM {1} ";
+			return string.Format("SELECT{0} {{0}} FROM {{1}}{1}{2}", limit > 0 ? " TOP " + limit : string.Empty, whereClause, orderByClause);
 		}
 
 
@@ -250,11 +205,55 @@ namespace Massive
 			return columnFromSchema.COLUMN_NAME;
 		}
 
-		
+
+		/// <summary>
+		/// Builds a paging query and count query pair. 
+		/// </summary>
+		/// <param name="sql">The SQL statement to build the query pair for. Can be left empty, in which case the table name from the schema is used</param>
+		/// <param name="primaryKeyField">The primary key field. Used for ordering. If left empty the defined PK field is used</param>
+		/// <param name="whereClause">The where clause. Default is empty string.</param>
+		/// <param name="orderByClause">The order by clause. Default is empty string.</param>
+		/// <param name="columns">The columns to use in the project. Default is '*' (all columns, in table defined order).</param>
+		/// <param name="pageSize">Size of the page. Default is 20</param>
+		/// <param name="currentPage">The current page. 1-based. Default is 1.</param>
+		/// <returns>ExpandoObject with two properties: MainQuery for fetching the specified page and CountQuery for determining the total number of rows in the resultset</returns>
+		private dynamic BuildPagingQueryPair(string sql = "", string primaryKeyField = "", string whereClause = "", string orderByClause = "", string columns = "*", int pageSize = 20,
+											  int currentPage = 1)
+		{
+			var countSQL = string.IsNullOrEmpty(sql) ? string.Format("SELECT COUNT({0}) FROM {1}", PrimaryKeyField, TableName)
+													 : string.Format("SELECT COUNT({0}) FROM ({1}) AS PagedTable", primaryKeyField, sql);
+			var orderByClauseFragment = orderByClause;
+			if(string.IsNullOrEmpty(orderByClauseFragment))
+			{
+				orderByClauseFragment = string.IsNullOrEmpty(primaryKeyField) ? PrimaryKeyField : primaryKeyField;
+			}
+			var whereClauseFragment = ReadifyWhereClause(whereClause);
+			var query = string.Empty;
+			if(string.IsNullOrEmpty(sql))
+			{
+				query = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {1}) AS Row, {0} FROM {2} {3}) AS Paged ", columns, orderByClauseFragment, TableName, 
+									  whereClauseFragment);
+			}
+			else
+			{
+				query = string.Format("SELECT {0} FROM (SELECT ROW_NUMBER() OVER (ORDER BY {1}) AS Row, {0} FROM ({2}) AS PagedTable {3}) AS Paged ", columns, orderByClauseFragment, sql, 
+									  whereClauseFragment);
+			}
+			var pageStart = (currentPage - 1) * pageSize;
+			query += string.Format(" WHERE Row > {0} AND Row <={1}", pageStart, (pageStart + pageSize));
+			countSQL += whereClauseFragment;
+			dynamic toReturn = new ExpandoObject();
+			toReturn.MainQuery = query;
+			toReturn.CountQuery = countSQL;
+			return toReturn;
+		}
+
+
+		#region Properties
 		/// <summary>
 		/// Provides the default DbProviderFactoryName to the core to create a factory on the fly in generic code.
 		/// </summary>
-		private string DbProviderFactoryName
+		protected virtual string DbProviderFactoryName
 		{
 			get { return "System.Data.SqlClient"; }
 		}
@@ -262,9 +261,10 @@ namespace Massive
 		/// <summary>
 		/// Gets the table schema query to use to obtain meta-data for a given table which is specified as the single parameter.
 		/// </summary>
-		private string TableSchemaQuery
+		protected virtual string TableSchemaQuery
 		{
 			get { return "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @0"; }
 		}
+		#endregion
 	}
 }

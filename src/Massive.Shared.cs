@@ -6,7 +6,6 @@ using System.Data;
 using System.Data.Common;
 using System.Dynamic;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace Massive
@@ -140,6 +139,7 @@ namespace Massive
 		private DbProviderFactory _factory;
 		private string _connectionString;
 		private IEnumerable<dynamic> _schema;
+		private string _primaryKeyFieldSequence;
 		#endregion
 
 
@@ -151,12 +151,14 @@ namespace Massive
 		/// <param name="primaryKeyField">The primary key field. Can be left empty, in which case 'ID' is used.</param>
 		/// <param name="descriptorField">The descriptor field, if the table is a lookup table. Descriptor field is the field containing the textual representation of the value
 		/// in primaryKeyField.</param>
-		/// <param name="primaryKeyFieldIsSequenced">Gets or sets a value indicating whether the field specified in primaryKeyField is an identity / sequenced field (true, default) or not.</param>
-		public DynamicModel(string connectionStringName, string tableName = "", string primaryKeyField = "", string descriptorField = "", bool primaryKeyFieldIsSequenced = true)
+		/// <param name="primaryKeyFieldSequence">The primary key sequence to use. Specify the empty string if the PK isn't sequenced/identity. Is initialized by default with
+		/// the name specified in the constant DynamicModel.DefaultSequenceName.</param>
+		public DynamicModel(string connectionStringName, string tableName = "", string primaryKeyField = "", string descriptorField = "", 
+							string primaryKeyFieldSequence=DynamicModel._defaultSequenceName)
 		{
 			this.TableName = string.IsNullOrWhiteSpace(tableName) ? this.GetType().Name : tableName;
 			this.PrimaryKeyField = string.IsNullOrWhiteSpace(primaryKeyField) ? "ID" : primaryKeyField;
-			this.PrimaryKeyFieldIsSequenced = primaryKeyFieldIsSequenced;
+			_primaryKeyFieldSequence = primaryKeyFieldSequence == "" ? ConfigurationManager.AppSettings["default_seq"] : primaryKeyFieldSequence;
 			this.DescriptorField = descriptorField;
 			var _providerName = this.DbProviderFactoryName;
 			this.Errors = new List<string>();
@@ -206,7 +208,6 @@ namespace Massive
 		{
 			dynamic result = new ExpandoObject();
 			var dc = (IDictionary<string, object>)result;
-			//loop the collection, setting only what's in the Schema
 			foreach(var item in coll.Keys)
 			{
 				var columnName = item.ToString();
@@ -220,7 +221,7 @@ namespace Massive
 
 
 		/// <summary>
-		/// Enumerates the reader yielding the result - thanks to Jeroen Haegebaert
+		/// Enumerates the reader yielding the result
 		/// </summary>
 		/// <param name="sql">The SQL to execute as a command.</param>
 		/// <param name="args">The parameter values.</param>
@@ -243,7 +244,7 @@ namespace Massive
 
 
 		/// <summary>
-		/// Enumerates the reader yielding the result - thanks to Jeroen Haegebaert
+		/// Enumerates the reader yielding the result
 		/// </summary>
 		/// <param name="sql">The SQL to execute as a command.</param>
 		/// <param name="connection">The connection to use with the command.</param>
@@ -255,7 +256,7 @@ namespace Massive
 			{
 				while(rdr.Read())
 				{
-					yield return rdr.RecordToExpando(); ;
+					yield return rdr.RecordToExpando();
 				}
 				rdr.Close();
 			}
@@ -304,14 +305,7 @@ namespace Massive
 			var commands = new List<DbCommand>();
 			foreach(var item in things)
 			{
-				if(HasPrimaryKey(item))
-				{
-					commands.Add(CreateUpdateCommand(item.ToExpando(), GetPrimaryKey(item)));
-				}
-				else
-				{
-					commands.Add(CreateInsertCommand(item.ToExpando()));
-				}
+				commands.Add(HasPrimaryKey(item) ? CreateUpdateCommand(item.ToExpando(), GetPrimaryKey(item)) : CreateInsertCommand(item.ToExpando()));
 			}
 			return commands;
 		}
@@ -324,7 +318,7 @@ namespace Massive
 		/// <returns>the value returned by the database after executing the command. </returns>
 		public virtual int Execute(DbCommand command)
 		{
-			return Execute(new DbCommand[] { command });
+			return Execute(new[] { command });
 		}
 
 
@@ -397,7 +391,7 @@ namespace Massive
 		/// <returns>streaming enumerable with expandos, one for each row read</returns>
 		public virtual IEnumerable<dynamic> All(string where = "", string orderBy = "", int limit = 0, string columns = "*", params object[] args)
 		{
-			return Query(string.Format(BuildSelectQueryPattern(@where, orderBy, limit), columns, TableName), args);
+			return Query(string.Format(BuildSelectQueryPattern(where, orderBy, limit), columns, TableName), args);
 		}
 
 
@@ -413,7 +407,7 @@ namespace Massive
 		/// <returns>The result of the paged query. Result properties are Items, TotalPages, and TotalRecords.</returns>
 		public virtual dynamic Paged(string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage = 1, params object[] args)
 		{
-			return BuildPagedResult(where: where, orderBy: orderBy, columns: columns, pageSize: pageSize, currentPage: currentPage, args: args);
+			return BuildPagedResult(whereClause: where, orderByClause: orderBy, columns: columns, pageSize: pageSize, currentPage: currentPage, args: args);
 		}
 
 
@@ -502,15 +496,14 @@ namespace Massive
 		{
 			if(things.Any(item=>!IsValid(item)))
 			{
-				throw new InvalidOperationException("Can't save this item: " + String.Join("; ", this.Errors.ToArray()));
+				throw new InvalidOperationException("Can't save this item: " + string.Join("; ", this.Errors.ToArray()));
 			}
 			return Execute(BuildCommands(things));
 		}
 
 
 		/// <summary>
-		/// Executes a set of objects as Insert commands, within a transaction. These objects can be POCOs, Anonymous, NameValueCollections, 
-		/// or Expandos. 
+		/// Executes a set of objects as Insert commands, within a transaction. These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. 
 		/// </summary>
 		/// <param name="things">The objects to save within a single transaction.</param>
 		/// <returns>the sum of the values returned by the database when executing each command.</returns>
@@ -519,7 +512,7 @@ namespace Massive
 		{
 			if(things.Any(item => !IsValid(item)))
 			{
-				throw new InvalidOperationException("Can't save this item: " + String.Join("; ", this.Errors.ToArray()));
+				throw new InvalidOperationException("Can't save this item: " + string.Join("; ", this.Errors.ToArray()));
 			}
 			return Execute(things.Select(t => CreateInsertCommand(t.ToExpando())).Cast<DbCommand>().ToList());
 		}
@@ -533,13 +526,12 @@ namespace Massive
 		/// <exception cref="System.InvalidOperationException">Can't parse this object to the database - there are no properties set</exception>
 		public virtual DbCommand CreateInsertCommand(dynamic expando)
 		{
-			var settings = (IDictionary<string, object>)expando;
 			var fieldNames = new List<string>();
 			var valueParameters = new List<string>();
 			var insertQueryPattern = this.GetInsertQueryPattern();
 			var result = CreateCommand(insertQueryPattern, null);
 			int counter = 0;
-			foreach(var item in settings)
+			foreach(var item in (IDictionary<string, object>)expando)
 			{
 				fieldNames.Add(item.Key);
 				valueParameters.Add(this.PrefixParameterName(counter.ToString()));
@@ -582,17 +574,12 @@ namespace Massive
 		/// <exception cref="System.InvalidOperationException">No parsable object was sent in - could not define any name/value pairs</exception>
 		public virtual DbCommand CreateUpdateWhereCommand(dynamic expando, string where = "", params object[] args)
 		{
-			var settings = (IDictionary<string, object>)expando;
 			var fieldSetFragments = new List<string>();
 			var updateQueryPattern = this.GetUpdateQueryPattern();
-			if(!string.IsNullOrWhiteSpace(@where))
-			{
-				updateQueryPattern += @where.Trim().StartsWith("WHERE", StringComparison.OrdinalIgnoreCase) ? string.Empty : " WHERE ";
-				updateQueryPattern += @where;
-			}
+			updateQueryPattern += ReadifyWhereClause(where);
 			var result = CreateCommand(updateQueryPattern, null, args);
 			int counter = args.Length > 0 ? args.Length : 0;
-			foreach(var item in settings)
+			foreach(var item in (IDictionary<string, object>)expando)
 			{
 				var val = item.Value;
 				if(!item.Key.Equals(PrimaryKeyField, StringComparison.OrdinalIgnoreCase) && item.Value != null)
@@ -624,25 +611,21 @@ namespace Massive
 		public virtual DbCommand CreateDeleteCommand(string where = "", object key = null, params object[] args)
 		{
 			var sql = string.Format(this.GetDeleteQueryPattern(), TableName);
-			if(key != null)
+			if(key == null)
 			{
-				sql += string.Format("WHERE {0}={1}", this.PrimaryKeyField, this.PrefixParameterName("0"));
-				args = new[] { key };
+				sql += ReadifyWhereClause(@where);
 			}
 			else
 			{
-				if(!string.IsNullOrEmpty(where))
-				{
-					sql += where.Trim().StartsWith("WHERE", StringComparison.OrdinalIgnoreCase) ? where : "WHERE " + where;
-				}
+				sql += string.Format("WHERE {0}={1}", this.PrimaryKeyField, this.PrefixParameterName("0"));
+				args = new[] {key};
 			}
 			return CreateCommand(sql, null, args);
 		}
 
 
 		/// <summary>
-		/// Adds a record to the database. You can pass in an Anonymous object, an ExpandoObject,
-		/// A regular old POCO, or a NameValueColletion from a Request.Form or Request.QueryString
+		/// Adds a record to the database. You can pass in an Anonymous object, an ExpandoObject, a regular old POCO, or a NameValueColletion from a Request.Form or Request.QueryString
 		/// </summary>
 		/// <param name="o">The object to insert.</param>
 		/// <returns>the object inserted as expando. If the PrimaryKeyField is an identity field, it's set in the returned object to the value it received at insert.</returns>
@@ -651,23 +634,28 @@ namespace Massive
 			var ex = o.ToExpando();
 			if(!IsValid(ex))
 			{
-				throw new InvalidOperationException("Can't insert: " + String.Join("; ", Errors.ToArray()));
+				throw new InvalidOperationException("Can't insert: " + string.Join("; ", Errors.ToArray()));
 			}
 			if(BeforeSave(ex))
 			{
 				using(var conn = OpenConnection())
 				{
+					if(_sequenceValueCallsBeforeMainInsert && !string.IsNullOrEmpty(_primaryKeyFieldSequence))
+					{
+						var sequenceCmd = CreateCommand(this.GetIdentityRetrievalScalarStatement(), conn);
+						((IDictionary<string, object>)ex)[this.PrimaryKeyField] = Convert.ToInt32(sequenceCmd.ExecuteScalar());
+					}
 					DbCommand cmd = CreateInsertCommand(ex);
 					cmd.Connection = conn;
-					if(this.PrimaryKeyFieldIsSequenced)
+					if(_sequenceValueCallsBeforeMainInsert || string.IsNullOrEmpty(_primaryKeyFieldSequence))
+					{
+						cmd.ExecuteNonQuery();
+					}
+					else
 					{
 						// simply batch the identity scalar query to the main insert query and execute them as one scalar query. This will both execute the statement and return the sequence value
 						cmd.CommandText += ";" + this.GetIdentityRetrievalScalarStatement();
 						((IDictionary<string, object>)ex)[this.PrimaryKeyField] = Convert.ToInt32(cmd.ExecuteScalar());
-					}
-					else
-					{
-						cmd.ExecuteNonQuery();
 					}
 					Inserted(ex);
 					conn.Close();
@@ -679,8 +667,7 @@ namespace Massive
 
 
 		/// <summary>
-		/// Updates a record in the database. You can pass in an Anonymous object, an ExpandoObject,
-		/// A regular old POCO, or a NameValueCollection from a Request.Form or Request.QueryString
+		/// Updates a record in the database. You can pass in an Anonymous object, an ExpandoObject, a regular old POCO, or a NameValueCollection from a Request.Form or Request.QueryString
 		/// </summary>
 		/// <param name="o">The object to update</param>
 		/// <param name="key">The key value to compare against PrimaryKeyField.</param>
@@ -690,7 +677,7 @@ namespace Massive
 			var ex = o.ToExpando();
 			if(!IsValid(ex))
 			{
-				throw new InvalidOperationException("Can't Update: " + String.Join("; ", Errors.ToArray()));
+				throw new InvalidOperationException("Can't Update: " + string.Join("; ", Errors.ToArray()));
 			}
 			var result = 0;
 			if(BeforeSave(ex))
@@ -719,7 +706,7 @@ namespace Massive
 			var ex = o.ToExpando();
 			if(!IsValid(ex))
 			{
-				throw new InvalidOperationException("Can't Update: " + String.Join("; ", Errors.ToArray()));
+				throw new InvalidOperationException("Can't Update: " + string.Join("; ", Errors.ToArray()));
 			}
 			var result = 0;
 			if(BeforeSave(ex))
@@ -765,40 +752,6 @@ namespace Massive
 				dc[key] = value;
 			}
 		}
-
-
-		/// <summary>
-		/// Hook, called when IsValid is called
-		/// </summary>
-		/// <param name="item">The item to validate.</param>
-		public virtual void Validate(dynamic item) { }
-		/// <summary>
-		/// Hook, called after item has been inserted.
-		/// </summary>
-		/// <param name="item">The item inserted.</param>
-		public virtual void Inserted(dynamic item) { }
-		/// <summary>
-		/// Hook, called after item has been updated
-		/// </summary>
-		/// <param name="item">The item updated.</param>
-		public virtual void Updated(dynamic item) { }
-		/// <summary>
-		/// Hook, called after item has been deleted.
-		/// </summary>
-		/// <param name="item">The item deleted.</param>
-		public virtual void Deleted(dynamic item) { }
-		/// <summary>
-		/// Hook, called before item will be deleted.
-		/// </summary>
-		/// <param name="item">The item to be deleted.</param>
-		/// <returns>true if delete can proceed, false if it can't</returns>
-		public virtual bool BeforeDelete(dynamic item) { return true; }
-		/// <summary>
-		/// Hook, called before item will be saved
-		/// </summary>
-		/// <param name="item">The item to save.</param>
-		/// <returns>true if save can proceed, false if it can't</returns>
-		public virtual bool BeforeSave(dynamic item) { return true; }
 
 
 		/// <summary>
@@ -862,13 +815,9 @@ namespace Massive
 		/// <returns>number of rows returned after executing the count query</returns>
 		public int Count(string tableName = "", string where = "", params object[] args)
 		{
-			var tableNameToUse = string.IsNullOrEmpty(tableName) ? this.TableName : tableName;
 			var scalarQueryPattern = this.GetCountRowQueryPattern();
-			if(!string.IsNullOrEmpty(where))
-			{
-				scalarQueryPattern += where.Trim().StartsWith("WHERE", StringComparison.OrdinalIgnoreCase) ? where : "WHERE " + where;
-			}
-			return (int)Scalar(string.Format(scalarQueryPattern, tableNameToUse), args);
+			scalarQueryPattern += ReadifyWhereClause(where);
+			return (int)Scalar(string.Format(scalarQueryPattern, string.IsNullOrEmpty(tableName) ? this.TableName : tableName), args);
 		}
 
 
@@ -876,29 +825,31 @@ namespace Massive
 		/// Provides the implementation for operations that invoke a member. This method implementation tries to create queries from the methods being invoked based on the name
 		/// of the invoked method.
 		/// </summary>
-		/// <param name="binder">Provides information about the dynamic operation. The binder.Name property provides the name of the member on which the dynamic operation is performed. For example, for the statement sampleObject.SampleMethod(100), where sampleObject is an instance of the class derived from the <see cref="T:System.Dynamic.DynamicObject" /> class, binder.Name returns "SampleMethod". The binder.IgnoreCase property specifies whether the member name is case-sensitive.</param>
-		/// <param name="args">The arguments that are passed to the object member during the invoke operation. For example, for the statement sampleObject.SampleMethod(100), where sampleObject is derived from the <see cref="T:System.Dynamic.DynamicObject" /> class, <paramref name="args[0]" /> is equal to 100.</param>
+		/// <param name="binder">Provides information about the dynamic operation. The binder.Name property provides the name of the member on which the dynamic operation is performed. 
+		/// For example, for the statement sampleObject.SampleMethod(100), where sampleObject is an instance of the class derived from the <see cref="T:System.Dynamic.DynamicObject" /> class, 
+		/// binder.Name returns "SampleMethod". The binder.IgnoreCase property specifies whether the member name is case-sensitive.</param>
+		/// <param name="args">The arguments that are passed to the object member during the invoke operation. For example, for the statement sampleObject.SampleMethod(100), where sampleObject is 
+		/// derived from the <see cref="T:System.Dynamic.DynamicObject" /> class, <paramref name="args[0]" /> is equal to 100.</param>
 		/// <param name="result">The result of the member invocation.</param>
 		/// <returns>
-		/// true if the operation is successful; otherwise, false. If this method returns false, the run-time binder of the language determines the behavior. (In most cases, a language-specific run-time exception is thrown.)
+		/// true if the operation is successful; otherwise, false. If this method returns false, the run-time binder of the language determines the behavior. (In most cases, a language-specific 
+		/// run-time exception is thrown.)
 		/// </returns>
 		public override bool TryInvokeMember(InvokeMemberBinder binder, object[] args, out object result)
 		{
-			var counter = 0;
+			result = null;
 			var info = binder.CallInfo;
 			if(info.ArgumentNames.Count != args.Length)
 			{
 				throw new InvalidOperationException("Please use named arguments for this type of query - the column name, orderby, columns, etc");
 			}
-			//first should be "FindBy, Last, Single, First"
-			var op = binder.Name;
-			var columns = " * ";
-			string orderBy = string.Format(" ORDER BY {0}", PrimaryKeyField);
-			string where = string.Empty;
-			var whereArgs = new List<object>();
 
-			//loop the named args - see if we have order, columns and constraints
-			var constraints = new List<string>();
+			var columns = " * ";
+			var orderByClauseFragment = string.Format(" ORDER BY {0}", PrimaryKeyField);
+			var whereClauseFragment = string.Empty;
+			var whereArguments = new List<object>();
+			var wherePredicates = new List<string>();
+			var counter = 0;
 			if(info.ArgumentNames.Count > 0)
 			{
 				for(int i = 0; i < args.Length; i++)
@@ -907,32 +858,30 @@ namespace Massive
 					switch(name)
 					{
 						case "orderby":
-							orderBy = " ORDER BY " + args[i];
+							orderByClauseFragment = " ORDER BY " + args[i];
 							break;
 						case "columns":
 							columns = args[i].ToString();
 							break;
 						default:
-							constraints.Add(string.Format(" {0} = {1}", name, this.PrefixParameterName(counter.ToString())));
-							whereArgs.Add(args[i]);
+							wherePredicates.Add(string.Format(" {0} = {1}", name, this.PrefixParameterName(counter.ToString())));
+							whereArguments.Add(args[i]);
 							counter++;
 							break;
 					}
 				}
 			}
-
-			//Build the WHERE bits
-			if(constraints.Count > 0)
+			if(wherePredicates.Count > 0)
 			{
-				where = " WHERE " + string.Join(" AND ", constraints.ToArray());
+				whereClauseFragment = " WHERE " + string.Join(" AND ", wherePredicates.ToArray());
 			}
 
-			string oplowercase = op.ToLowerInvariant();
-			result = null;
+			var op = binder.Name;
+			var oplowercase = op.ToLowerInvariant();
 			switch(oplowercase)
 			{
 				case "count":
-					result = Count(TableName, @where, whereArgs.ToArray());
+					result = Count(TableName, whereClauseFragment, whereArguments.ToArray());
 					break;
 				case "sum":
 				case "max":
@@ -941,22 +890,55 @@ namespace Massive
 					var aggregate = this.GetAggregateFunction(oplowercase);
 					if(!string.IsNullOrWhiteSpace(aggregate))
 					{
-						result = Scalar(string.Format("SELECT {0}({1}) FROM {2} {3}", aggregate, columns, this.TableName, @where), whereArgs.ToArray());
+						result = Scalar(string.Format("SELECT {0}({1}) FROM {2} {3}", aggregate, columns, this.TableName, whereClauseFragment), whereArguments.ToArray());
 					}
 					break;
 				default:
-					//build the SQL
 					var justOne = op.StartsWith("First") || op.StartsWith("Last") || op.StartsWith("Get") || op.StartsWith("Find") || op.StartsWith("Single");
 					//Be sure to sort by DESC on the PK (PK Sort is the default)
 					if(op.StartsWith("Last"))
 					{
-						orderBy = orderBy + " DESC ";
+						orderByClauseFragment = orderByClauseFragment + " DESC ";
 					}
-					result = justOne ? All(@where, orderBy, 1, columns, whereArgs.ToArray()).FirstOrDefault() : All(@where, orderBy, 0, columns, whereArgs.ToArray());
+					result = justOne ? All(whereClauseFragment, orderByClauseFragment, 1, columns, whereArguments.ToArray()).FirstOrDefault() : All(whereClauseFragment, orderByClauseFragment, 0, columns, whereArguments.ToArray());
 					break;
 			}
 			return true;
 		}
+
+
+		/// <summary>
+		/// Hook, called when IsValid is called
+		/// </summary>
+		/// <param name="item">The item to validate.</param>
+		public virtual void Validate(dynamic item) { }
+		/// <summary>
+		/// Hook, called after item has been inserted.
+		/// </summary>
+		/// <param name="item">The item inserted.</param>
+		public virtual void Inserted(dynamic item) { }
+		/// <summary>
+		/// Hook, called after item has been updated
+		/// </summary>
+		/// <param name="item">The item updated.</param>
+		public virtual void Updated(dynamic item) { }
+		/// <summary>
+		/// Hook, called after item has been deleted.
+		/// </summary>
+		/// <param name="item">The item deleted.</param>
+		public virtual void Deleted(dynamic item) { }
+		/// <summary>
+		/// Hook, called before item will be deleted.
+		/// </summary>
+		/// <param name="item">The item to be deleted.</param>
+		/// <returns>true if delete can proceed, false if it can't</returns>
+		public virtual bool BeforeDelete(dynamic item) { return true; }
+		/// <summary>
+		/// Hook, called before item will be saved
+		/// </summary>
+		/// <param name="item">The item to save.</param>
+		/// <returns>true if save can proceed, false if it can't</returns>
+		public virtual bool BeforeSave(dynamic item) { return true; }
 
 
 		/// <summary>
@@ -996,17 +978,17 @@ namespace Massive
 		/// </summary>
 		/// <param name="sql">The SQL statement to build the query pair for. Can be left empty, in which case the table name from the schema is used</param>
 		/// <param name="primaryKeyField">The primary key field. Used for ordering. If left empty the defined PK field is used</param>
-		/// <param name="where">The where clause. Default is empty string.</param>
-		/// <param name="orderBy">The order by clause. Default is empty string.</param>
+		/// <param name="whereClause">The where clause. Default is empty string.</param>
+		/// <param name="orderByClause">The order by clause. Default is empty string.</param>
 		/// <param name="columns">The columns to use in the project. Default is '*' (all columns, in table defined order).</param>
 		/// <param name="pageSize">Size of the page. Default is 20</param>
 		/// <param name="currentPage">The current page. 1-based. Default is 1.</param>
 		/// <param name="args">The values to use as parameters.</param>
 		/// <returns>The result of the paged query. Result properties are Items, TotalPages, and TotalRecords.</returns>
-		private dynamic BuildPagedResult(string sql = "", string primaryKeyField = "", string where = "", string orderBy = "", string columns = "*", int pageSize = 20, int currentPage = 1,
-										 params object[] args)
+		private dynamic BuildPagedResult(string sql = "", string primaryKeyField = "", string whereClause = "", string orderByClause = "", string columns = "*", int pageSize = 20, 
+										 int currentPage = 1, params object[] args)
 		{
-			var queryPair = this.BuildPagingQueryPair(sql, primaryKeyField, where, orderBy, columns, pageSize, currentPage, args);
+			var queryPair = this.BuildPagingQueryPair(sql, primaryKeyField, whereClause, orderByClause, columns, pageSize, currentPage);
 			dynamic result = new ExpandoObject();
 			result.TotalRecords = Scalar(queryPair.CountQuery, args);
 			result.TotalPages = result.TotalRecords / pageSize;
@@ -1022,22 +1004,13 @@ namespace Massive
 		/// <summary>
 		/// Builds the select query pattern using the where, orderby and limit specified. 
 		/// </summary>
-		/// <param name="where">The where.</param>
-		/// <param name="orderBy">The order by.</param>
+		/// <param name="whereClause">The where.</param>
+		/// <param name="orderByClause">The order by.</param>
 		/// <param name="limit">The limit.</param>
 		/// <returns>Select statement pattern with {0} and {1} ready to be filled with projection list and source.</returns>
-		private string BuildSelectQueryPattern(string where, string orderBy, int limit)
+		private string BuildSelectQueryPattern(string whereClause, string orderByClause, int limit)
 		{
-			string sql = this.GetSelectQueryPattern(limit);
-			if(!string.IsNullOrEmpty(where))
-			{
-				sql += where.Trim().StartsWith("WHERE", StringComparison.OrdinalIgnoreCase) ? where : " WHERE " + where;
-			}
-			if(!String.IsNullOrEmpty(orderBy))
-			{
-				sql += orderBy.Trim().StartsWith("ORDER BY", StringComparison.OrdinalIgnoreCase) ? orderBy : " ORDER BY " + orderBy;
-			}
-			return sql;
+			return this.GetSelectQueryPattern(limit, ReadifyWhereClause(whereClause), ReadifyOrderByClause(orderByClause));
 		}
 		
 
@@ -1063,21 +1036,62 @@ namespace Massive
 		}
 
 
-		#region OBSOLETE CRUFT
-#warning SEE #233.
-		[Obsolete("Candidate for removal because it's buggy and doesn't validate for currency but for decimal (no scale check)")]
-		public virtual void ValidateIsCurrency(object value, string message = "Should be money")
+		/// <summary>
+		/// Readifies the where clause specified. If a non-empty/whitespace string is specified, it will make sure it's prefixed with " WHERE" including a prefix space.
+		/// </summary>
+		/// <param name="rawWhereClause">The raw where clause.</param>
+		/// <returns>processed rawWhereClause which will guaranteed contain " WHERE" including prefix space.</returns>
+		private string ReadifyWhereClause(string rawWhereClause)
 		{
-			if(value == null)
-				Errors.Add(message);
-			decimal val = decimal.MinValue;
-			decimal.TryParse(value.ToString(), out val);
-			if(val == decimal.MinValue)
-				Errors.Add(message);
+			return ReadifyClause(rawWhereClause, "WHERE");
 		}
-		#endregion
 
 
+		/// <summary>
+		/// Readifies the orderby clause specified. If a non-empty/whitespace string is specified, it will make sure it's prefixed with " ORDER BY" including a prefix space.
+		/// </summary>
+		/// <param name="rawOrderByClause">The raw order by clause.</param>
+		/// <returns>
+		/// processed rawOrderByClause which will guaranteed contain " ORDER BY" including prefix space.
+		/// </returns>
+		private string ReadifyOrderByClause(string rawOrderByClause)
+		{
+			return ReadifyClause(rawOrderByClause, "ORDER BY");
+		}
+
+
+		/// <summary>
+		/// Readifies the where clause specified. If a non-empty/whitespace string is specified, it will make sure it's prefixed with the specified operator including a prefix space.
+		/// </summary>
+		/// <param name="rawClause">The raw clause.</param>
+		/// <param name="op">The operator, e.g. "WHERE" or "ORDER BY".</param>
+		/// <returns>
+		/// processed rawClause which will guaranteed start with op including prefix space.
+		/// </returns>
+		private string ReadifyClause(string rawClause, string op)
+		{
+			var toReturn = string.Empty;
+			if(rawClause == null)
+			{
+				return toReturn;
+			}
+			toReturn = rawClause.Trim();
+			if(!string.IsNullOrWhiteSpace(toReturn))
+			{
+				if(toReturn.StartsWith(op, StringComparison.OrdinalIgnoreCase))
+				{
+					toReturn = " " + toReturn;
+				}
+				else
+				{
+					toReturn = string.Format(" {0} {1}", op, toReturn);
+				}
+			}
+			return toReturn;
+		}
+
+
+		#region Properties
 		/// <summary>
 		/// List out all the schema bits for use with ... whatever
 		/// </summary>
@@ -1115,10 +1129,6 @@ namespace Massive
 		/// </summary>
 		public virtual string PrimaryKeyField { get; set; }
 		/// <summary>
-		/// Gets or sets a value indicating whether the field specified in PrimaryKeyField is an identity / sequenced field (true, default) or not.
-		/// </summary>
-		public virtual bool PrimaryKeyFieldIsSequenced { get; set; }
-		/// <summary>
 		/// Gets or sets the descriptor field name, which is useful if the table is a lookup table. Descriptor field is the field containing the textual representation of the value
 		/// in PrimaryKeyField.
 		/// </summary>
@@ -1127,5 +1137,6 @@ namespace Massive
 		/// Contains the error messages collected since the last Validate.
 		/// </summary>
 		public IList<string> Errors { get; protected set; }
+		#endregion
 	}
 }

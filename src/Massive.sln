@@ -5,6 +5,8 @@ VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Massive.SqlServer", "Massive.SqlServer.csproj", "{2B468CA9-D9AE-40CB-B7D1-EC2CC546359C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Massive.Oracle", "Massive.Oracle.csproj", "{18960910-2074-4DF2-A7FF-3C1914439386}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{2B468CA9-D9AE-40CB-B7D1-EC2CC546359C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2B468CA9-D9AE-40CB-B7D1-EC2CC546359C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2B468CA9-D9AE-40CB-B7D1-EC2CC546359C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{18960910-2074-4DF2-A7FF-3C1914439386}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{18960910-2074-4DF2-A7FF-3C1914439386}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{18960910-2074-4DF2-A7FF-3C1914439386}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{18960910-2074-4DF2-A7FF-3C1914439386}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
