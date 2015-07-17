@@ -89,8 +89,8 @@ namespace Massive
 			dynamic result;
 			switch(defaultValue)
 			{
-				case "getdate()":
-				case "(getdate())":
+				case "SYSDATE":
+				case "(SYSDATE)":
 					result = DateTime.Now;
 					break;
 				default:
