@@ -126,7 +126,7 @@ namespace Massive.Oracle {
             DescriptorField = descriptorField;
             _sequence = sequence == "" ? ConfigurationManager.AppSettings["default_seq"] : sequence;
 
-            var _providerName = "System.Data.OracleClient";
+            var _providerName = "System.Data.OracleClient"; //Will also work with Devart.Data.Oracle if you have it installed
             var _connectionStringKey = ConfigurationManager.ConnectionStrings[connectionStringName];
 
             if (_connectionStringKey == null) {
