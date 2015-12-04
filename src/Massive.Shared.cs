@@ -727,6 +727,11 @@ namespace Massive
 		/// <returns></returns>
 		public int Delete(object key = null, string where = "", params object[] args)
 		{
+			if(key == null)
+			{
+				// directly delete on the DB, no fetch of individual element
+				return Execute(CreateDeleteCommand(where, null, args));
+			}
 			var deleted = this.Single(key);
 			var result = 0;
 			if(BeforeDelete(deleted))

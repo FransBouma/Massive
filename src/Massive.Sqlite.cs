@@ -126,7 +126,7 @@ namespace Massive
 		/// <returns></returns>
 		protected virtual string GetIdentityRetrievalScalarStatement()
 		{
-			return "select last_insert_rowid()";
+			return "SELECT last_insert_rowid()";
 		}
 
 
@@ -162,7 +162,7 @@ namespace Massive
 		/// </returns>
 		protected virtual string GetSelectQueryPattern(int limit, string whereClause, string orderByClause)
 		{
-			return string.Format("SELECT{0} {{0}} FROM {{1}}{1}{2}", limit > 0 ? " TOP " + limit : string.Empty, whereClause, orderByClause);
+			return string.Format("SELECT {{0}} FROM {{1}}{0}{1}{2}", whereClause, orderByClause, limit > 0 ? " LIMIT " + limit : string.Empty);
 		}
 
 
@@ -262,7 +262,7 @@ namespace Massive
 			toReturn.CountQuery = string.Format("SELECT COUNT(*) FROM ({0})", coreQuery);
 			var pageStart = (currentPage - 1) * pageSize;
 			// append the main query with a LIMIT clause
-			toReturn.MainQuery = string.Format("{0} LIMIT {1}, {2}", coreQuery, pageStart, (pageStart + pageSize));
+			toReturn.MainQuery = string.Format("{0} LIMIT {1}, {2}", coreQuery, pageStart, pageSize);
 			return toReturn;
 		}
 		
