@@ -434,6 +434,9 @@ namespace Massive
 		/// <summary>
 		/// Returns a single row from the database
 		/// </summary>
+		/// <param name="where">The where clause.</param>
+		/// <param name="args">The arguments.</param>
+		/// <returns></returns>
 		public virtual dynamic Single(string where, params object[] args)
 		{
 			return All(where, limit:1, args:args).FirstOrDefault();
@@ -443,6 +446,9 @@ namespace Massive
 		/// <summary>
 		/// Returns a single row from the database
 		/// </summary>
+		/// <param name="key">The pk value.</param>
+		/// <param name="columns">The columns to fetch.</param>
+		/// <returns></returns>
 		public virtual dynamic Single(object key, string columns = "*")
 		{
 			return All(this.GetPkComparisonPredicateQueryFragment(), limit: 1, columns: columns, args: new[] {key}).FirstOrDefault();
@@ -725,14 +731,14 @@ namespace Massive
 		/// <param name="where">The where clause. Can be empty. Ignored if key is set.</param>
 		/// <param name="args">The parameter values.</param>
 		/// <returns></returns>
-		public int Delete(object key = null, string where = "", params object[] args)
+		public virtual int Delete(object key = null, string where = "", params object[] args)
 		{
 			if(key == null)
 			{
 				// directly delete on the DB, no fetch of individual element
 				return Execute(CreateDeleteCommand(where, null, args));
 			}
-			var deleted = this.Single(key);
+			var deleted = Single(key);
 			var result = 0;
 			if(BeforeDelete(deleted))
 			{
