@@ -6,7 +6,7 @@ Massive was started by Rob Conery and [has been transfered](https://twitter.com/
 I'm working on Massive from time to time, this work is done in the [Refactoring branch](https://github.com/FransBouma/Massive/tree/Refactoring). To see what's new / breaking in this new version, please consult the [Wiki](https://github.com/FransBouma/Massive/wiki). 
 
 ## Current Status
-Current status is that tests work for all features of Massive and refactoring has been completed for SQLServer, Oracle and Postgresql and SQLite. This version will soon be labeled 'v2.0'. The plan is to add Async/Await code first before v2.0 is shipped. If you want to use the new code, select the _Refactoring_ branch and get these files: Massive.Shared.cs and Massive._yourdatabase_.cs.  
+Current status is that tests work for all features of Massive and refactoring has been completed for SQLServer, Oracle and Postgresql and SQLite. This version will soon be labeled 'v2.0'. Additionally, Async/Await support has been added to the Refactoring branch as well. If you want to use the new code, select the _Refactoring_ branch and get these files: Massive.Shared.cs and Massive._yourdatabase_.cs. If you want to use the async/await code, also get the file Massive.Shared.cs. You need to compile your project against .NET 4.5 or higher if you use async / await. Not all methods have an async variant: e.g. the dynamic method 'Find' is evaluated at runtime and therefore can't be used asynchronously. Use one of the async methods instead in that case.
 
 ## Original readme contents / Massive usage
 Below is the original contents of this file, written by Rob Conery.
