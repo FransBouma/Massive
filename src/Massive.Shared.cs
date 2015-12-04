@@ -1097,7 +1097,7 @@ namespace Massive
 		/// </summary>
 		public IEnumerable<dynamic> Schema
 		{
-			get { return _schema ?? (_schema = Query(this.TableSchemaQuery, this.TableName).ToList()); }
+			get { return _schema ?? (_schema = PostProcessSchemaQuery(Query(this.TableSchemaQuery, this.TableName))); }
 		}
 
 

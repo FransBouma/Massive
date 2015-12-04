@@ -220,6 +220,17 @@ namespace Massive
 
 
 		/// <summary>
+		/// Post-processes the query used to obtain the meta-data for the schema. If no post-processing is required, simply return a toList 
+		/// </summary>
+		/// <param name="toPostProcess">To post process.</param>
+		/// <returns></returns>
+		private IEnumerable<dynamic> PostProcessSchemaQuery(IEnumerable<dynamic> toPostProcess)
+		{
+			return toPostProcess == null ? new List<dynamic>() : toPostProcess.ToList();
+		}
+
+
+		/// <summary>
 		/// Builds a paging query and count query pair. 
 		/// </summary>
 		/// <param name="sql">The SQL statement to build the query pair for. Can be left empty, in which case the table name from the schema is used</param>

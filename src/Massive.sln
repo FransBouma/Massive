@@ -1,11 +1,15 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
-VisualStudioVersion = 12.0.31101.0
+VisualStudioVersion = 12.0.40629.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Massive.SqlServer", "Massive.SqlServer.csproj", "{2B468CA9-D9AE-40CB-B7D1-EC2CC546359C}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Massive.Oracle", "Massive.Oracle.csproj", "{18960910-2074-4DF2-A7FF-3C1914439386}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Massive.PostgreSql", "Massive.PostgreSql.csproj", "{0349466C-7843-47AB-82CC-6A837BD41227}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Massive.Sqlite", "Massive.Sqlite.csproj", "{F8B864EA-8E35-4BD4-86A0-5ABCF44CF6C7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +25,14 @@ Global
 		{18960910-2074-4DF2-A7FF-3C1914439386}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{18960910-2074-4DF2-A7FF-3C1914439386}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{18960910-2074-4DF2-A7FF-3C1914439386}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0349466C-7843-47AB-82CC-6A837BD41227}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0349466C-7843-47AB-82CC-6A837BD41227}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0349466C-7843-47AB-82CC-6A837BD41227}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0349466C-7843-47AB-82CC-6A837BD41227}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F8B864EA-8E35-4BD4-86A0-5ABCF44CF6C7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F8B864EA-8E35-4BD4-86A0-5ABCF44CF6C7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F8B864EA-8E35-4BD4-86A0-5ABCF44CF6C7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F8B864EA-8E35-4BD4-86A0-5ABCF44CF6C7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
