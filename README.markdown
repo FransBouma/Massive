@@ -6,7 +6,7 @@ Massive was started by Rob Conery and [has been transfered](https://twitter.com/
 I'm working on Massive from time to time, this work is done in the [Refactoring branch](https://github.com/FransBouma/Massive/tree/Refactoring). To see what's new / breaking in this new version, please consult the [Wiki](https://github.com/FransBouma/Massive/wiki). 
 
 ## Current Status
-Current status is that tests work for all features of Massive and refactoring has been completed for SQLServer, Oracle and Postgresql, but not yet SQLite. If you're using SQLite, please keep using the source in the Master branch. 
+Current status is that tests work for all features of Massive and refactoring has been completed for SQLServer, Oracle and Postgresql and SQLite. This version will soon be labeled 'v2.0'. The plan is to add Async/Await code first before v2.0 is shipped. If you want to use the new code, select the _Refactoring_ branch and get these files: Massive.Shared.cs and Massive._yourdatabase_.cs.  
 
 ## Original readme contents / Massive usage
 Below is the original contents of this file, written by Rob Conery.
@@ -247,5 +247,6 @@ The callbacks you can use are:
  * Deleted
  * BeforeDelete
  * BeforeSave
+
 
 
