@@ -22,6 +22,27 @@ namespace Massive.Tests
 
 
 		[Test]
+		[Ignore("Fails. See #247")]
+		public void EmptyElement_ProtoType()
+		{
+			var soh = new SalesOrderHeader();
+			dynamic defaults = soh.Prototype;
+			Assert.IsTrue(defaults.OrderDate > DateTime.MinValue);
+		}
+
+
+		[Test]
+		public void SchemaMetaDataRetrieval()
+		{
+			var soh = new SalesOrderHeader();
+			var schema = soh.Schema;
+			Assert.IsNotNull(schema);
+			Assert.AreEqual(26, schema.Count());
+			Assert.IsTrue(schema.All(v=>v.TABLE_NAME==soh.TableNameWithoutSchema));
+		}
+
+
+		[Test]
 		public void All_NoParameters()
 		{
 			var soh = new SalesOrderHeader();

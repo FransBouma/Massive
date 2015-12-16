@@ -157,6 +157,7 @@ namespace Massive
 							string primaryKeyFieldSequence=DynamicModel._defaultSequenceName)
 		{
 			this.TableName = string.IsNullOrWhiteSpace(tableName) ? this.GetType().Name : tableName;
+			ProcessTableName();
 			this.PrimaryKeyField = string.IsNullOrWhiteSpace(primaryKeyField) ? "ID" : primaryKeyField;
 			_primaryKeyFieldSequence = primaryKeyFieldSequence == "" ? ConfigurationManager.AppSettings["default_seq"] : primaryKeyFieldSequence;
 			this.DescriptorField = descriptorField;
@@ -951,7 +952,6 @@ namespace Massive
 		/// <returns>true if save can proceed, false if it can't</returns>
 		public virtual bool BeforeSave(dynamic item) { return true; }
 
-
 		/// <summary>
 		/// Creates a new DbCommand from the sql statement specified and assigns it to the connection specified. 
 		/// </summary>
@@ -1102,13 +1102,45 @@ namespace Massive
 		}
 
 
+		/// <summary>
+		/// Processes the name of the table specified in the CTor into multiple elements, if applicable. 
+		/// </summary>
+		private void ProcessTableName()
+		{
+			this.TableNameWithoutSchema = this.TableName;
+			this.SchemaName = string.Empty;
+			if(string.IsNullOrWhiteSpace(this.TableName))
+			{
+				return;
+			}
+			var fragments = this.TableName.Split('.');
+			if(fragments.Length == 1)
+			{
+				this.TableNameWithoutSchema = fragments[0];
+			}
+			else
+			{
+				this.SchemaName = fragments[fragments.Length - 2];
+				this.TableNameWithoutSchema = fragments[fragments.Length - 1];
+			}
+		}
+
+
 		#region Properties
 		/// <summary>
 		/// List out all the schema bits for use with ... whatever
 		/// </summary>
 		public IEnumerable<dynamic> Schema
 		{
-			get { return _schema ?? (_schema = PostProcessSchemaQuery(Query(this.TableSchemaQuery, this.TableName))); }
+			get
+			{
+				if(_schema == null)
+				{
+					_schema = PostProcessSchemaQuery(string.IsNullOrWhiteSpace(this.SchemaName) ? Query(this.TableWithoutSchemaQuery, this.TableName)
+																		: Query(this.TableWithSchemaQuery, this.TableNameWithoutSchema, this.SchemaName));
+				}
+				return _schema;
+			}
 		}
 
 
@@ -1131,6 +1163,17 @@ namespace Massive
 			}
 		}
 
+
+		/// <summary>
+		/// Gets the name of the schema. This name is obtained from <see cref="TableName"/>. If TableName doesn't contain
+		/// a schema, this property is the empty string.
+		/// </summary>
+		public virtual string SchemaName { get; private set; }
+		/// <summary>
+		/// Gets or sets the table name without schema. This name is identical to <see cref="TableName"/> if that name doesn't contain any schema information. By default
+		/// Massive splits the TableName on '.'.
+		/// </summary>
+		public virtual string TableNameWithoutSchema { get; private set; }
 		/// <summary>
 		/// Gets or sets the name of the table this dynamicmodel is represented by.
 		/// </summary>

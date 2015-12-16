@@ -270,9 +270,17 @@ namespace Massive
 
 
 		/// <summary>
+		/// Gets the table schema query to use to obtain meta-data for a given table and schema
+		/// </summary>
+		protected virtual string TableWithSchemaQuery
+		{
+			get { return "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = :0 AND TABLE_SCHEMA = :1"; }
+		}
+
+		/// <summary>
 		/// Gets the table schema query to use to obtain meta-data for a given table which is specified as the single parameter.
 		/// </summary>
-		protected virtual string TableSchemaQuery
+		protected virtual string TableWithoutSchemaQuery
 		{
 			get { return "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = :0"; }
 		}

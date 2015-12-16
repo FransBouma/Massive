@@ -276,10 +276,20 @@ namespace Massive
 			get { return "System.Data.SQLite"; }
 		}
 
+
+		/// <summary>
+		/// Gets the table schema query to use to obtain meta-data for a given table and schema
+		/// </summary>
+		protected virtual string TableWithSchemaQuery
+		{
+			// SQLite doesn't support schemas.
+			get { return this.TableWithoutSchemaQuery; }
+		}
+
 		/// <summary>
 		/// Gets the table schema query to use to obtain meta-data for a given table which is specified as the single parameter.
 		/// </summary>
-		protected virtual string TableSchemaQuery
+		protected virtual string TableWithoutSchemaQuery
 		{
 			get { return "PRAGMA table_info(@0)"; }
 		}
