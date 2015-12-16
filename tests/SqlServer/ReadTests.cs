@@ -22,7 +22,6 @@ namespace Massive.Tests
 
 
 		[Test]
-		[Ignore("Fails. See #247")]
 		public void EmptyElement_ProtoType()
 		{
 			var soh = new SalesOrderHeader();

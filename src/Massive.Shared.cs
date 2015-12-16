@@ -1152,11 +1152,12 @@ namespace Massive
 			get
 			{
 				dynamic result = new ExpandoObject();
-				var schema = Schema;
+				var dc = (IDictionary<string, object>)result;
+				var schema = this.Schema;
 				foreach(dynamic column in schema)
 				{
-					var dc = (IDictionary<string, object>)result;
-					dc.Add(this.GetColumnName(column), this.DefaultValue(column));
+					var columnName = this.GetColumnName(column);
+					dc.Add(columnName, this.DefaultValue(columnName));
 				}
 				result._Table = this;
 				return result;
