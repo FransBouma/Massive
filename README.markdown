@@ -27,7 +27,7 @@ Massive has no external direct dependencies, just get the code, compile it with 
 If you're using v1.0 currently and want to migrate to v2.0, please take a look at [What's new in v2.0](https://github.com/FransBouma/Massive/wiki/v2.0-Whats-new) page for more details about whether you'll run into the changes made. In general the breaking changes will be minor, if any. 
 
 ## What's new in v2.0
-Besides some changes as documented in the [breaking changes](https://github.com/FransBouma/Massive/wiki/v2.0-Whats-new), the following features / additions are new:
+Besides some changes as documented in the [What's new in v2.0](https://github.com/FransBouma/Massive/wiki/v2.0-Whats-new), the following features / additions are new:
 
 * Async / Await support. Not all supported databases support asynchronous data-access under the hood, but the Massive API at least allows you to work with the code asynchronously. Full Async is supported by the ADO.NET providers of SQL Server and Npgsql (3.x). ODP.NET (Oracle) doesn't support async under the hood so using the Async API with Oracle will still use synchronous data-access under the hood (through the default DbCommand fall back code). SQLite's ADO.NET provider does support async using specific types but Massive doesn't support these.
 * Shared code. In v1.0 code which was effectively the same among all supported databases was copy/pasted, in v2.0 Massive uses partial classes and shares as much code as possible among all supported databases. 
