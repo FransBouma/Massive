@@ -181,22 +181,27 @@ namespace Massive
 		/// <param name="primaryKeyFieldSequence">The primary key sequence to use. Specify the empty string if the PK isn't sequenced/identity. Is initialized by default with
 		/// the name specified in the constant DynamicModel.DefaultSequenceName.</param>
 		public DynamicModel(string connectionStringName, string tableName = "", string primaryKeyField = "", string descriptorField = "", 
-							string primaryKeyFieldSequence=DynamicModel._defaultSequenceName)
+							string primaryKeyFieldSequence=DynamicModel._defaultSequenceName, 
+                            IConnectionStringProvider connectionStringProvider = null)
 		{
 			this.TableName = string.IsNullOrWhiteSpace(tableName) ? this.GetType().Name : tableName;
 			ProcessTableName();
 			this.PrimaryKeyField = string.IsNullOrWhiteSpace(primaryKeyField) ? "ID" : primaryKeyField;
 			_primaryKeyFieldSequence = primaryKeyFieldSequence == "" ? ConfigurationManager.AppSettings["default_seq"] : primaryKeyFieldSequence;
 			this.DescriptorField = descriptorField;
-			var _providerName = this.DbProviderFactoryName;
 			this.Errors = new List<string>();
 
-			if(!string.IsNullOrWhiteSpace(ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName))
-			{
-				_providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
-			}
-			_factory = DbProviderFactories.GetFactory(_providerName);
-			_connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
+            if (connectionStringProvider == null)
+            {
+                connectionStringProvider = new ConfigurationBasedConnectionStringProvider();
+            }
+            var _providerName = connectionStringProvider.GetProviderName(connectionStringName);
+            if (string.IsNullOrWhiteSpace(_providerName))
+            {
+                _providerName = this.DbProviderFactoryName;
+            }
+            _factory = DbProviderFactories.GetFactory(_providerName);
+			_connectionString = connectionStringProvider.GetConnectionString(connectionStringName);
 		}
 
 
@@ -1230,4 +1235,27 @@ namespace Massive
 		}
 		#endregion
 	}
+
+    public interface IConnectionStringProvider
+    {
+        string GetProviderName(string connectionStringName);
+        string GetConnectionString(string connectionStringName);
+    }
+
+    public class ConfigurationBasedConnectionStringProvider : IConnectionStringProvider
+    {
+        public string GetProviderName(string connectionStringName)
+        {
+            if (!string.IsNullOrWhiteSpace(ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName))
+            {
+                return ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
+            }
+            return null;
+        }
+
+        public string GetConnectionString(string connectionStringName)
+        {
+            return ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
+        }
+    }
 }
