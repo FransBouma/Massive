@@ -125,7 +125,7 @@ namespace Massive
 			return result;
 		}
 
-		
+
 		/// <summary>
 		/// Gets the aggregate function to use in a scalar query for the fragment specified
 		/// </summary>
@@ -271,7 +271,7 @@ namespace Massive
 		{
 			// 1) create the main query,
 			// 2) wrap it with the paging query constructs. This is done for both the count and the paging query. 
-			var orderByClauseFragment = string.IsNullOrEmpty(orderByClause) ? string.Format(" ORDER BY {0}", string.IsNullOrEmpty(primaryKeyField) ? PrimaryKeyField : primaryKeyField) 
+			var orderByClauseFragment = string.IsNullOrEmpty(orderByClause) ? string.Format(" ORDER BY {0}", string.IsNullOrEmpty(primaryKeyField) ? PrimaryKeyField : primaryKeyField)
 																			: ReadifyOrderByClause(orderByClause);
 			var coreQuery = string.Format(this.GetSelectQueryPattern(0, ReadifyWhereClause(whereClause), orderByClauseFragment), columns, string.IsNullOrEmpty(sql) ? this.TableName : sql);
 			dynamic toReturn = new ExpandoObject();
@@ -282,7 +282,7 @@ namespace Massive
 			return toReturn;
 		}
 
-		
+
 		#region Properties
 		/// <summary>
 		/// Provides the default DbProviderFactoryName to the core to create a factory on the fly in generic code.
