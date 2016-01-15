@@ -101,6 +101,15 @@ namespace Massive.Tests.Oracle
 			Assert.AreEqual(60, page2.TotalRecords);
 		}
 
+        [Test]
+        public void Paged_SqlSpecification()
+        {
+            var depts = new Department();
+            var page2 = depts.Paged(sql: "SELECT * FROM DEPT", primaryKey: "DEPTNO", pageSize: 10, currentPage: 2);
+            var pageItems = ((IEnumerable<dynamic>)page2.Items).ToList();
+            Assert.AreEqual(10, pageItems.Count);
+            Assert.AreEqual(60, page2.TotalRecords);
+        }
 
 		[Test]
 		public void Insert_SingleRow()
