@@ -28,10 +28,12 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Data;
 using System.Data.Common;
 using System.Dynamic;
 using System.Linq;
+using System.Reflection;
 
 namespace Massive
 {
@@ -86,6 +88,10 @@ namespace Massive
 	/// </summary>
 	public partial class DynamicModel
 	{
+		#region Members
+		private static PropertyInfo _bindByNameDescriptor, _initialLongFetchSizeDescriptor;
+		#endregion
+
 		#region Constants
 		// Mandatory constants/variables every DB has to define. 
 		/// <summary>
@@ -97,6 +103,30 @@ namespace Massive
 		/// </summary>
 		private bool _sequenceValueCallsBeforeMainInsert = true;
 		#endregion
+
+
+		/// <summary>
+		/// Partial method which, when implemented offers ways to set DbCommand specific properties, which are specific for a given ADO.NET provider. 
+		/// </summary>
+		/// <param name="toAlter">the command object to alter the properties of</param>
+		partial void SetCommandSpecificProperties(DbCommand toAlter)
+		{
+			// no need for locking, as the values are always the same so it doesn't matter whether multiple threads set the value multiple times. 
+			if(toAlter == null)
+			{
+				return;
+			}
+			if(_bindByNameDescriptor == null)
+			{
+				_bindByNameDescriptor = toAlter.GetType().GetProperty("BindByName");
+			}
+			if(_initialLongFetchSizeDescriptor == null)
+			{
+				_initialLongFetchSizeDescriptor = toAlter.GetType().GetProperty("InitialLONGFetchSize");
+			}
+			_bindByNameDescriptor.SetValue(toAlter, true, null);	// keep true as the default as otherwise ODP.NET won't bind the parameters by name but by location.
+			_initialLongFetchSizeDescriptor.SetValue(toAlter, -1, null);	// this is the ideal value, it obtains the LONG value in one go.
+		}
 
 
 		/// <summary>

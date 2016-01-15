@@ -160,6 +160,7 @@ namespace Massive
 	/// <summary>
 	/// A class that wraps your database table in Dynamic Funtime
 	/// </summary>
+	/// <seealso cref="System.Dynamic.DynamicObject" />
 	public partial class DynamicModel : DynamicObject
 	{
 		#region Members
@@ -985,6 +986,12 @@ namespace Massive
 		/// <param name="item">The item to save.</param>
 		/// <returns>true if save can proceed, false if it can't</returns>
 		public virtual bool BeforeSave(dynamic item) { return true; }
+		/// <summary>
+		/// Partial method which, when implemented offers ways to set DbCommand specific properties, which are specific for a given ADO.NET provider. 
+		/// </summary>
+		/// <param name="toAlter">the command object to alter the properties of</param>
+		partial void SetCommandSpecificProperties(DbCommand toAlter);
+
 
 		/// <summary>
 		/// Creates a new DbCommand from the sql statement specified and assigns it to the connection specified. 
@@ -998,6 +1005,7 @@ namespace Massive
 			var result = _factory.CreateCommand();
 			if(result != null)
 			{
+				SetCommandSpecificProperties(result);
 				result.Connection = conn;
 				result.CommandText = sql;
 				result.AddParams(args);
