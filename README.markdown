@@ -20,7 +20,8 @@ Massive has no external direct dependencies, just get the code, compile it with 
 
 * SQL Server. The ADO.NET provider ships with .NET.
 * Oracle: [ODP.NET](http://www.oracle.com/technetwork/topics/dotnet/index-085163.html). The installer for ODP.NET v12c installs both a full managed ADO.NET provider and a wrapper around its Java based Client Level Interface (CLI). By default Massive uses the latter, using the factory name `Oracle.DataAccess.Client`. If you want to use the Managed provider, please change the value in property `DbProviderFactoryName` in the [Massive.Oracle.cs](https://github.com/FransBouma/Massive/blob/v2.0/src/Massive.Oracle.cs) file around [line 297](https://github.com/FransBouma/Massive/blob/v2.0/src/Massive.Oracle.cs#L297) to `Oracle.ManagedDataAccess.Client`. This requires .NET 4.0 or higher.
-* PostgreSQL: [Npgsql](http://www.npgsql.org/). By default the Npgsql distribution doesn't install any DbProviderFactory, so you have to do this manually. 
+* PostgreSQL: [Npgsql](http://www.npgsql.org/). The Npgsql distribution contains an installer, offered at the 
+'releases' section. This installer will add the required DbProviderFactory reference and will add the npgsql dll to the gac. 
 * SQLite: Massive uses the official SQLite .NET provider. [Please read the official documentation](https://system.data.sqlite.org/index.html/doc/trunk/www/index.wiki) on that provider to get started. 
 
 ## Migrating from v1.0 to v2.0

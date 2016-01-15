@@ -180,9 +180,11 @@ namespace Massive
 		/// in primaryKeyField.</param>
 		/// <param name="primaryKeyFieldSequence">The primary key sequence to use. Specify the empty string if the PK isn't sequenced/identity. Is initialized by default with
 		/// the name specified in the constant DynamicModel.DefaultSequenceName.</param>
-		public DynamicModel(string connectionStringName, string tableName = "", string primaryKeyField = "", string descriptorField = "", 
-							string primaryKeyFieldSequence=DynamicModel._defaultSequenceName, 
-                            IConnectionStringProvider connectionStringProvider = null)
+		/// <param name="connectionStringProvider">The connection string provider to use. By default this is empty and the default provider is used which will read values from 
+		/// the application's config file.</param>
+		public DynamicModel(string connectionStringName, string tableName = "", string primaryKeyField = "", string descriptorField = "",
+							string primaryKeyFieldSequence = DynamicModel._defaultSequenceName,
+							IConnectionStringProvider connectionStringProvider = null)
 		{
 			this.TableName = string.IsNullOrWhiteSpace(tableName) ? this.GetType().Name : tableName;
 			ProcessTableName();
@@ -191,16 +193,16 @@ namespace Massive
 			this.DescriptorField = descriptorField;
 			this.Errors = new List<string>();
 
-            if (connectionStringProvider == null)
-            {
-                connectionStringProvider = new ConfigurationBasedConnectionStringProvider();
-            }
-            var _providerName = connectionStringProvider.GetProviderName(connectionStringName);
-            if (string.IsNullOrWhiteSpace(_providerName))
-            {
-                _providerName = this.DbProviderFactoryName;
-            }
-            _factory = DbProviderFactories.GetFactory(_providerName);
+			if(connectionStringProvider == null)
+			{
+				connectionStringProvider = new ConfigurationBasedConnectionStringProvider();
+			}
+			var _providerName = connectionStringProvider.GetProviderName(connectionStringName);
+			if(string.IsNullOrWhiteSpace(_providerName))
+			{
+				_providerName = this.DbProviderFactoryName;
+			}
+			_factory = DbProviderFactories.GetFactory(_providerName);
 			_connectionString = connectionStringProvider.GetConnectionString(connectionStringName);
 		}
 
@@ -472,7 +474,7 @@ namespace Massive
 		/// <returns></returns>
 		public virtual dynamic Single(string where, params object[] args)
 		{
-			return All(where, limit:1, args:args).FirstOrDefault();
+			return All(where, limit: 1, args: args).FirstOrDefault();
 		}
 
 
@@ -484,7 +486,7 @@ namespace Massive
 		/// <returns></returns>
 		public virtual dynamic Single(object key, string columns = "*")
 		{
-			return All(this.GetPkComparisonPredicateQueryFragment(), limit: 1, columns: columns, args: new[] {key}).FirstOrDefault();
+			return All(this.GetPkComparisonPredicateQueryFragment(), limit: 1, columns: columns, args: new[] { key }).FirstOrDefault();
 		}
 
 
@@ -497,7 +499,7 @@ namespace Massive
 			{
 				throw new InvalidOperationException("There's no DescriptorField set - do this in your constructor to describe the text value you want to see");
 			}
-			var results = All(orderBy:orderBy, columns:string.Format("{0}, {1}", this.PrimaryKeyField, this.DescriptorField)).ToList().Cast<IDictionary<string, object>>();
+			var results = All(orderBy: orderBy, columns: string.Format("{0}, {1}", this.PrimaryKeyField, this.DescriptorField)).ToList().Cast<IDictionary<string, object>>();
 			return results.ToDictionary(key => key[PrimaryKeyField].ToString(), value => value[DescriptorField]);
 		}
 
@@ -533,7 +535,7 @@ namespace Massive
 		/// <returns>the sum of the values returned by the database when executing each command.</returns>
 		public virtual int Save(params object[] things)
 		{
-			if(things.Any(item=>!IsValid(item)))
+			if(things.Any(item => !IsValid(item)))
 			{
 				throw new InvalidOperationException("Can't save this item: " + string.Join("; ", this.Errors.ToArray()));
 			}
@@ -657,7 +659,7 @@ namespace Massive
 			else
 			{
 				sql += string.Format("WHERE {0}={1}", this.PrimaryKeyField, this.PrefixParameterName("0"));
-				args = new[] {key};
+				args = new[] { key };
 			}
 			return CreateCommand(sql, null, args);
 		}
@@ -833,7 +835,7 @@ namespace Massive
 		public virtual void ValidatesNumericalityOf(object value, string message = "Should be a number")
 		{
 			var numerics = new[] { "Int32", "Int16", "Int64", "Decimal", "Double", "Single", "Float" };
-			if((value==null) || !numerics.Contains(value.GetType().Name))
+			if((value == null) || !numerics.Contains(value.GetType().Name))
 			{
 				Errors.Add(message);
 			}
@@ -1028,7 +1030,7 @@ namespace Massive
 		/// <param name="currentPage">The current page. 1-based. Default is 1.</param>
 		/// <param name="args">The values to use as parameters.</param>
 		/// <returns>The result of the paged query. Result properties are Items, TotalPages, and TotalRecords.</returns>
-		private dynamic BuildPagedResult(string sql = "", string primaryKeyField = "", string whereClause = "", string orderByClause = "", string columns = "*", int pageSize = 20, 
+		private dynamic BuildPagedResult(string sql = "", string primaryKeyField = "", string whereClause = "", string orderByClause = "", string columns = "*", int pageSize = 20,
 										 int currentPage = 1, params object[] args)
 		{
 			var queryPair = this.BuildPagingQueryPair(sql, primaryKeyField, whereClause, orderByClause, columns, pageSize, currentPage);
@@ -1055,7 +1057,7 @@ namespace Massive
 		{
 			return this.GetSelectQueryPattern(limit, ReadifyWhereClause(whereClause), ReadifyOrderByClause(orderByClause));
 		}
-		
+
 
 		/// <summary>
 		/// Gets the pk comparison predicate query fragment, which is PrimaryKeyField = [parameter]
@@ -1236,26 +1238,53 @@ namespace Massive
 		#endregion
 	}
 
-    public interface IConnectionStringProvider
-    {
-        string GetProviderName(string connectionStringName);
-        string GetConnectionString(string connectionStringName);
-    }
 
-    public class ConfigurationBasedConnectionStringProvider : IConnectionStringProvider
-    {
-        public string GetProviderName(string connectionStringName)
-        {
-            if (!string.IsNullOrWhiteSpace(ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName))
-            {
-                return ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
-            }
-            return null;
-        }
+	/// <summary>
+	/// Interface for specifying ado.net provider name and connection string. Used to create custom connection string/ado.net factory name providers 
+	/// for sources other than .config files, e.g. with usage in ASPNET5
+	/// </summary>
+	public interface IConnectionStringProvider
+	{
+		/// <summary>
+		/// Gets the name of the provider which is the name of the DbProviderFactory specified in the connection string stored under the name specified.
+		/// </summary>
+		/// <param name="connectionStringName">Name of the connection string.</param>
+		/// <returns></returns>
+		string GetProviderName(string connectionStringName);
+		/// <summary>
+		/// Gets the connection string stored under the name specified
+		/// </summary>
+		/// <param name="connectionStringName">Name of the connection string.</param>
+		/// <returns></returns>
+		string GetConnectionString(string connectionStringName);
+	}
 
-        public string GetConnectionString(string connectionStringName)
-        {
-            return ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
-        }
-    }
+
+	/// <summary>
+	/// Default implementation of IConnectionStringProvider which uses config files for its source.
+	/// </summary>
+	/// <seealso cref="Massive.IConnectionStringProvider" />
+	public class ConfigurationBasedConnectionStringProvider : IConnectionStringProvider
+	{
+		/// <summary>
+		/// Gets the name of the provider which is the name of the DbProviderFactory specified in the connection string stored under the name specified.
+		/// </summary>
+		/// <param name="connectionStringName">Name of the connection string.</param>
+		/// <returns></returns>
+		public string GetProviderName(string connectionStringName)
+		{
+			var providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
+			return !string.IsNullOrWhiteSpace(providerName) ? providerName : null;
+		}
+
+		/// <summary>
+		/// Gets the connection string stored under the name specified
+		/// </summary>
+		/// <param name="connectionStringName">Name of the connection string.</param>
+		/// <returns></returns>
+		public string GetConnectionString(string connectionStringName)
+		{
+			return ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
+		}
+	}
 }
