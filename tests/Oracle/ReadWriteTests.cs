@@ -67,7 +67,7 @@ namespace Massive.Tests.Oracle
 		public void All_WhereSpecification_OrderBySpecification_LimitSpecification()
 		{
 			var depts = new Department();
-			var allRows = depts.All(limit:6, orderBy: "DEPTNO DESC", where: "WHERE LOC=:0", args: "Nowhere").ToList();
+			var allRows = depts.All(limit: 6, orderBy: "DEPTNO DESC", where: "WHERE LOC=:0", args: "Nowhere").ToList();
 			Assert.AreEqual(6, allRows.Count);
 			int previous = int.MaxValue;
 			foreach(var r in allRows)
@@ -101,13 +101,23 @@ namespace Massive.Tests.Oracle
 			Assert.AreEqual(60, page2.TotalRecords);
 		}
 
+		[Test]
+		public void Paged_SqlSpecification()
+		{
+			var depts = new Department();
+			var page2 = depts.Paged(sql: "SELECT * FROM DEPT", primaryKey: "DEPTNO", pageSize: 10, currentPage: 2);
+			var pageItems = ((IEnumerable<dynamic>)page2.Items).ToList();
+			Assert.AreEqual(10, pageItems.Count);
+			Assert.AreEqual(60, page2.TotalRecords);
+		}
 
 		[Test]
 		public void Insert_SingleRow()
 		{
 			var depts = new Department();
-			var inserted = depts.Insert(new {DNAME = "Massive Dep", LOC = "Beach"});
+			var inserted = depts.Insert(new { DNAME = "Massive Dep", LOC = "Beach" });
 			Assert.IsTrue(inserted.DEPTNO > 0);
+			Assert.AreEqual(1, depts.Delete(inserted.DEPTNO));
 		}
 
 
@@ -118,5 +128,5 @@ namespace Massive.Tests.Oracle
 			var depts = new Department();
 			depts.Delete(null, "DNAME=:0", "Massive Dep");
 		}
-    }
+	}
 }
