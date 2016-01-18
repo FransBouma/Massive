@@ -115,9 +115,9 @@ namespace Massive.Tests.Oracle
 		public void Insert_SingleRow()
 		{
 			var depts = new Department();
-			var inserted = depts.Insert(new { DNAME = "Massive Dep", LOC = "Beach" });
-			Assert.IsTrue(inserted.DEPTNO > 0);
-			Assert.AreEqual(1, depts.Delete(inserted.DEPTNO));
+			var inserted = depts.Save(new { DNAME = "Massive Dep", LOC = "Beach" });
+			Assert.IsTrue(inserted > 0);
+			Assert.AreEqual(1, depts.Delete(inserted));
 		}
 
 
