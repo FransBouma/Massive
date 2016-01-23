@@ -246,19 +246,17 @@ namespace Massive
 		public virtual async Task<int> ExecuteAsync(IEnumerable<DbCommand> commands, CancellationToken cancellationToken)
 		{
 			var result = 0;
-			using(var conn = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false))
+			using(var connectionToUse = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false))
 			{
-				using(var tx = conn.BeginTransaction())
+				using(var transactionToUse = connectionToUse.BeginTransaction())
 				{
 					foreach(var cmd in commands)
 					{
-						cmd.Connection = conn;
-						cmd.Transaction = tx;
-						result += await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+						result += await ExecuteDbCommandAsync(cmd, connectionToUse, transactionToUse, cancellationToken).ConfigureAwait(false);
 					}
-					tx.Commit();
+					transactionToUse.Commit();
 				}
-				conn.Close();
+				connectionToUse.Close();
 			}
 			return result;
 		}
@@ -461,7 +459,7 @@ namespace Massive
 			{
 				throw new InvalidOperationException("Can't save this item: " + string.Join("; ", this.Errors.ToArray()));
 			}
-			return ExecuteAsync(BuildCommands(things), cancellationToken);
+			return PerformSaveAsync(false, cancellationToken, things);
 		}
 
 
@@ -498,7 +496,7 @@ namespace Massive
 			{
 				throw new InvalidOperationException("Can't save this item: " + string.Join("; ", this.Errors.ToArray()));
 			}
-			return ExecuteAsync(things.Select(t => CreateInsertCommand(t.ToExpando())).Cast<DbCommand>().ToList(), cancellationToken);
+			return PerformSaveAsync(true, cancellationToken, things);
 		}
 
 
@@ -527,39 +525,52 @@ namespace Massive
 		/// </returns>
 		public virtual async Task<dynamic> InsertAsync(object o, CancellationToken cancellationToken)
 		{
-			var ex = o.ToExpando();
-			if(!IsValid(ex))
+			var oAsExpando = o.ToExpando();
+			if(!IsValid(oAsExpando))
 			{
 				throw new InvalidOperationException("Can't insert: " + string.Join("; ", Errors.ToArray()));
 			}
-			if(BeforeSave(ex))
+			if(BeforeSave(oAsExpando))
 			{
 				using(var conn = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false))
 				{
-					if(_sequenceValueCallsBeforeMainInsert && !string.IsNullOrEmpty(_primaryKeyFieldSequence))
-					{
-						var sequenceCmd = CreateCommand(this.GetIdentityRetrievalScalarStatement(), conn);
-						((IDictionary<string, object>)ex)[this.PrimaryKeyField] = Convert.ToInt32(await sequenceCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
-					}
-					DbCommand cmd = CreateInsertCommand(ex);
-					cmd.Connection = conn;
-					if(_sequenceValueCallsBeforeMainInsert || string.IsNullOrEmpty(_primaryKeyFieldSequence))
-					{
-						await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-					}
-					else
-					{
-						// simply batch the identity scalar query to the main insert query and execute them as one scalar query. This will both execute the statement and 
-						// return the sequence value
-						cmd.CommandText += ";" + this.GetIdentityRetrievalScalarStatement();
-						((IDictionary<string, object>)ex)[this.PrimaryKeyField] = Convert.ToInt32(await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
-					}
-					Inserted(ex);
+					await PerformInsertAsync(conn, oAsExpando, cancellationToken).ConfigureAwait(false);
+					Inserted(oAsExpando);
 					conn.Close();
 				}
-				return ex;
+				return oAsExpando;
 			}
 			return null;
+		}
+
+
+		/// <summary>
+		/// Async variant of PerformInsert. Performs the insert action of the dynamic specified using the connection specified. Expects the connection to be open.
+		/// </summary>
+		/// <param name="conn">The connection. Has to be open</param>
+		/// <param name="toInsert">The dynamic to insert. Is used to create the sql queries</param>
+		/// <param name="cancellationToken">The cancellation token.</param>
+		/// <returns>nothing</returns>
+		private async Task PerformInsertAsync(DbConnection conn, dynamic toInsert, CancellationToken cancellationToken)
+		{
+			if(_sequenceValueCallsBeforeMainInsert && !string.IsNullOrEmpty(_primaryKeyFieldSequence))
+			{
+				var sequenceCmd = CreateCommand(this.GetIdentityRetrievalScalarStatement(), conn);
+				((IDictionary<string, object>)toInsert)[this.PrimaryKeyField] = Convert.ToInt32(await sequenceCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
+			}
+			DbCommand cmd = CreateInsertCommand(toInsert);
+			cmd.Connection = conn;
+			if(_sequenceValueCallsBeforeMainInsert || string.IsNullOrEmpty(_primaryKeyFieldSequence))
+			{
+				await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+			}
+			else
+			{
+				// simply batch the identity scalar query to the main insert query and execute them as one scalar query. This will both execute the statement and 
+				// return the sequence value
+				cmd.CommandText += ";" + this.GetIdentityRetrievalScalarStatement();
+				((IDictionary<string, object>)toInsert)[this.PrimaryKeyField] = Convert.ToInt32(await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
+			}
 		}
 
 
@@ -759,6 +770,66 @@ namespace Massive
 				await result.OpenAsync(cancellationToken).ConfigureAwait(false);
 			}
 			return result;
+		}
+
+		
+		/// <summary>
+		/// Async variant of PerformSave. Performs the save of the elements in toSave for the Save() and SaveAsNew() methods.
+		/// </summary>
+		/// <param name="allSavesAreInserts">if set to <c>true</c> it will simply save all elements in toSave using insert queries</param>
+		/// <param name="cancellationToken">The cancellation token.</param>
+		/// <param name="toSave">The elements to save.</param>
+		/// <returns>
+		/// the sum of the values returned by the database when executing each command.
+		/// </returns>
+		private async Task<int> PerformSaveAsync(bool allSavesAreInserts, CancellationToken cancellationToken, params object[] toSave)
+		{
+			var result = 0;
+			using(var connectionToUse = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false))
+			{
+				using(var transactionToUse = connectionToUse.BeginTransaction())
+				{
+					foreach(var o in toSave)
+					{
+						var oAsExpando = o.ToExpando();
+						if(BeforeSave(oAsExpando))
+						{
+							if(!allSavesAreInserts && HasPrimaryKey(o))
+							{
+								// update
+								result += await ExecuteDbCommandAsync(CreateUpdateCommand(oAsExpando, GetPrimaryKey(o)), connectionToUse, transactionToUse, cancellationToken).ConfigureAwait(false);
+								Updated(oAsExpando);
+							}
+							else
+							{
+								// insert
+								await PerformInsertAsync(connectionToUse, transactionToUse, oAsExpando).ConfigureAwait(false);
+								Inserted(oAsExpando);
+								result++;
+							}
+						}
+					}
+					transactionToUse.Commit();
+				}
+				connectionToUse.Close();
+			}
+			return result;
+		}
+
+
+		/// <summary>
+		/// Async variant of ExecuteDbCommand. Executes the database command specified
+		/// </summary>
+		/// <param name="cmd">The command.</param>
+		/// <param name="connectionToUse">The connection to use, has to be open.</param>
+		/// <param name="transactionToUse">The transaction to use, can be null.</param>
+		/// <param name="cancellationToken">The cancellation token.</param>
+		/// <returns></returns>
+		private Task<int> ExecuteDbCommandAsync(DbCommand cmd, DbConnection connectionToUse, DbTransaction transactionToUse, CancellationToken cancellationToken)
+		{
+			cmd.Connection = connectionToUse;
+			cmd.Transaction = transactionToUse;
+			return cmd.ExecuteNonQueryAsync(cancellationToken);
 		}
 
 

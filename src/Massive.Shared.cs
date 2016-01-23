@@ -333,21 +333,6 @@ namespace Massive
 
 
 		/// <summary>
-		/// Builds a set of Insert and Update commands based on the passed-on objects. These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
-		/// With a PK property (whatever PrimaryKeyField is set to) will be created at UPDATEs
-		/// </summary>
-		public virtual List<DbCommand> BuildCommands(params object[] things)
-		{
-			var commands = new List<DbCommand>();
-			foreach(var item in things)
-			{
-				commands.Add(HasPrimaryKey(item) ? CreateUpdateCommand(item.ToExpando(), GetPrimaryKey(item)) : CreateInsertCommand(item.ToExpando()));
-			}
-			return commands;
-		}
-
-
-		/// <summary>
 		/// Executes the specified command using a new connection
 		/// </summary>
 		/// <param name="command">The command to execute.</param>
@@ -384,9 +369,7 @@ namespace Massive
 				{
 					foreach(var cmd in commands)
 					{
-						cmd.Connection = conn;
-						cmd.Transaction = tx;
-						result += cmd.ExecuteNonQuery();
+						result += ExecuteDbCommand(cmd, conn, tx);
 					}
 					tx.Commit();
 				}
@@ -536,11 +519,15 @@ namespace Massive
 		/// <returns>the sum of the values returned by the database when executing each command.</returns>
 		public virtual int Save(params object[] things)
 		{
+			if(things == null)
+			{
+				throw new ArgumentNullException("things");
+			}
 			if(things.Any(item => !IsValid(item)))
 			{
 				throw new InvalidOperationException("Can't save this item: " + string.Join("; ", this.Errors.ToArray()));
 			}
-			return Execute(BuildCommands(things));
+			return PerformSave(false, things);
 		}
 
 
@@ -549,120 +536,17 @@ namespace Massive
 		/// </summary>
 		/// <param name="things">The objects to save within a single transaction.</param>
 		/// <returns>the sum of the values returned by the database when executing each command.</returns>
-		/// <remarks>Sequenced PK fields aren't read back from the DB, meaning the objects in 'things' aren't updated with the sequenced PK values.</remarks>
 		public virtual int SaveAsNew(params object[] things)
 		{
+			if(things == null)
+			{
+				throw new ArgumentNullException("things");
+			}
 			if(things.Any(item => !IsValid(item)))
 			{
 				throw new InvalidOperationException("Can't save this item: " + string.Join("; ", this.Errors.ToArray()));
 			}
-			return Execute(things.Select(t => CreateInsertCommand(t.ToExpando())).Cast<DbCommand>().ToList());
-		}
-
-
-		/// <summary>
-		/// Creates a DbCommand with an insert statement to insert a new row in the table, using the values in the passed in expando.
-		/// </summary>
-		/// <param name="expando">The expando object which contains per field the value to insert.</param>
-		/// <returns>ready to use DbCommand</returns>
-		/// <exception cref="System.InvalidOperationException">Can't parse this object to the database - there are no properties set</exception>
-		public virtual DbCommand CreateInsertCommand(dynamic expando)
-		{
-			var fieldNames = new List<string>();
-			var valueParameters = new List<string>();
-			var insertQueryPattern = this.GetInsertQueryPattern();
-			var result = CreateCommand(insertQueryPattern, null);
-			int counter = 0;
-			foreach(var item in (IDictionary<string, object>)expando)
-			{
-				fieldNames.Add(item.Key);
-				valueParameters.Add(this.PrefixParameterName(counter.ToString()));
-				result.AddParam(item.Value);
-				counter++;
-			}
-			if(counter > 0)
-			{
-				result.CommandText = string.Format(insertQueryPattern, TableName, string.Join(", ", fieldNames.ToArray()), string.Join(", ", valueParameters.ToArray()));
-			}
-			else
-			{
-				throw new InvalidOperationException("Can't parse this object to the database - there are no properties set");
-			}
-			return result;
-		}
-
-
-		/// <summary>
-		/// Creates a DbCommand with an update command to update an existing row in the table, using the values in the specified expando.
-		/// </summary>
-		/// <param name="expando">The expando with the fields to update.</param>
-		/// <param name="key">The key value to use for PrimarykeyField comparison.</param>
-		/// <returns>ready to use DbCommand</returns>
-		public virtual DbCommand CreateUpdateCommand(dynamic expando, object key)
-		{
-			return CreateUpdateWhereCommand(expando, string.Format("{0} = {1}", this.PrimaryKeyField, this.PrefixParameterName("0")), key);
-		}
-
-
-		/// <summary>
-		/// Creates a DbCommand with an update command to update an existing row in the table, using the values in the specified expando.
-		/// </summary>
-		/// <param name="expando">The expando with the fields to update.</param>
-		/// <param name="where">The where clause. Default is empty string. Parameters have to be numbered starting with 0, for each value in args.</param>
-		/// <param name="args">The parameter values to use.</param>
-		/// <returns>
-		/// ready to use DbCommand
-		/// </returns>
-		/// <exception cref="System.InvalidOperationException">No parsable object was sent in - could not define any name/value pairs</exception>
-		public virtual DbCommand CreateUpdateWhereCommand(dynamic expando, string where = "", params object[] args)
-		{
-			var fieldSetFragments = new List<string>();
-			var updateQueryPattern = this.GetUpdateQueryPattern();
-			updateQueryPattern += ReadifyWhereClause(where);
-			var result = CreateCommand(updateQueryPattern, null, args);
-			int counter = args.Length > 0 ? args.Length : 0;
-			foreach(var item in (IDictionary<string, object>)expando)
-			{
-				var val = item.Value;
-				if(!item.Key.Equals(PrimaryKeyField, StringComparison.OrdinalIgnoreCase) && item.Value != null)
-				{
-					result.AddParam(val);
-					fieldSetFragments.Add(string.Format("{0} = {1}", item.Key, this.PrefixParameterName(counter.ToString())));
-					counter++;
-				}
-			}
-			if(counter > 0)
-			{
-				result.CommandText = string.Format(updateQueryPattern, TableName, string.Join(", ", fieldSetFragments.ToArray()));
-			}
-			else
-			{
-				throw new InvalidOperationException("No parsable object was sent in - could not define any name/value pairs");
-			}
-			return result;
-		}
-
-
-		/// <summary>
-		/// Creates a DbCommand with a delete statement to delete one or more records from the DB according to the passed-in where clause/key value. 
-		/// </summary>
-		/// <param name="where">The where clause. Can be empty. Ignored if key is set.</param>
-		/// <param name="key">The key. Value to compare with the PrimaryKeyField. If null, <see cref="where"/> is used as the where clause.</param>
-		/// <param name="args">The parameter values.</param>
-		/// <returns>ready to use DbCommand</returns>
-		public virtual DbCommand CreateDeleteCommand(string where = "", object key = null, params object[] args)
-		{
-			var sql = string.Format(this.GetDeleteQueryPattern(), TableName);
-			if(key == null)
-			{
-				sql += ReadifyWhereClause(@where);
-			}
-			else
-			{
-				sql += string.Format("WHERE {0}={1}", this.PrimaryKeyField, this.PrefixParameterName("0"));
-				args = new[] { key };
-			}
-			return CreateCommand(sql, null, args);
+			return PerformSave(true, things);
 		}
 
 
@@ -673,36 +557,20 @@ namespace Massive
 		/// <returns>the object inserted as expando. If the PrimaryKeyField is an identity field, it's set in the returned object to the value it received at insert.</returns>
 		public virtual dynamic Insert(object o)
 		{
-			var ex = o.ToExpando();
-			if(!IsValid(ex))
+			var oAsExpando = o.ToExpando();
+			if(!IsValid(oAsExpando))
 			{
 				throw new InvalidOperationException("Can't insert: " + string.Join("; ", Errors.ToArray()));
 			}
-			if(BeforeSave(ex))
+			if(BeforeSave(oAsExpando))
 			{
 				using(var conn = OpenConnection())
 				{
-					if(_sequenceValueCallsBeforeMainInsert && !string.IsNullOrEmpty(_primaryKeyFieldSequence))
-					{
-						var sequenceCmd = CreateCommand(this.GetIdentityRetrievalScalarStatement(), conn);
-						((IDictionary<string, object>)ex)[this.PrimaryKeyField] = Convert.ToInt32(sequenceCmd.ExecuteScalar());
-					}
-					DbCommand cmd = CreateInsertCommand(ex);
-					cmd.Connection = conn;
-					if(_sequenceValueCallsBeforeMainInsert || string.IsNullOrEmpty(_primaryKeyFieldSequence))
-					{
-						cmd.ExecuteNonQuery();
-					}
-					else
-					{
-						// simply batch the identity scalar query to the main insert query and execute them as one scalar query. This will both execute the statement and return the sequence value
-						cmd.CommandText += ";" + this.GetIdentityRetrievalScalarStatement();
-						((IDictionary<string, object>)ex)[this.PrimaryKeyField] = Convert.ToInt32(cmd.ExecuteScalar());
-					}
-					Inserted(ex);
+					PerformInsert(conn, null, oAsExpando);
+					Inserted(oAsExpando);
 					conn.Close();
 				}
-				return ex;
+				return oAsExpando;
 			}
 			return null;
 		}
@@ -716,16 +584,16 @@ namespace Massive
 		/// <returns>the number returned by the database after executing the update command </returns>
 		public virtual int Update(object o, object key)
 		{
-			var ex = o.ToExpando();
-			if(!IsValid(ex))
+			var oAsExpando = o.ToExpando();
+			if(!IsValid(oAsExpando))
 			{
 				throw new InvalidOperationException("Can't Update: " + string.Join("; ", Errors.ToArray()));
 			}
 			var result = 0;
-			if(BeforeSave(ex))
+			if(BeforeSave(oAsExpando))
 			{
-				result = Execute(CreateUpdateCommand(ex, key));
-				Updated(ex);
+				result = Execute(CreateUpdateCommand(oAsExpando, key));
+				Updated(oAsExpando);
 			}
 			return result;
 		}
@@ -745,16 +613,16 @@ namespace Massive
 			{
 				return 0;
 			}
-			var ex = o.ToExpando();
-			if(!IsValid(ex))
+			var oAsExpando = o.ToExpando();
+			if(!IsValid(oAsExpando))
 			{
 				throw new InvalidOperationException("Can't Update: " + string.Join("; ", Errors.ToArray()));
 			}
 			var result = 0;
-			if(BeforeSave(ex))
+			if(BeforeSave(oAsExpando))
 			{
-				result = Execute(CreateUpdateWhereCommand(ex, where, args));
-				Updated(ex);
+				result = Execute(CreateUpdateWhereCommand(oAsExpando, where, args));
+				Updated(oAsExpando);
 			}
 			return result;
 		}
@@ -955,6 +823,112 @@ namespace Massive
 
 
 		/// <summary>
+		/// Creates a DbCommand with an insert statement to insert a new row in the table, using the values in the passed in expando.
+		/// </summary>
+		/// <param name="expando">The expando object which contains per field the value to insert.</param>
+		/// <returns>ready to use DbCommand</returns>
+		/// <exception cref="System.InvalidOperationException">Can't parse this object to the database - there are no properties set</exception>
+		public virtual DbCommand CreateInsertCommand(dynamic expando)
+		{
+			var fieldNames = new List<string>();
+			var valueParameters = new List<string>();
+			var insertQueryPattern = this.GetInsertQueryPattern();
+			var result = CreateCommand(insertQueryPattern, null);
+			int counter = 0;
+			foreach(var item in (IDictionary<string, object>)expando)
+			{
+				fieldNames.Add(item.Key);
+				valueParameters.Add(this.PrefixParameterName(counter.ToString()));
+				result.AddParam(item.Value);
+				counter++;
+			}
+			if(counter > 0)
+			{
+				result.CommandText = string.Format(insertQueryPattern, TableName, string.Join(", ", fieldNames.ToArray()), string.Join(", ", valueParameters.ToArray()));
+			}
+			else
+			{
+				throw new InvalidOperationException("Can't parse this object to the database - there are no properties set");
+			}
+			return result;
+		}
+
+
+		/// <summary>
+		/// Creates a DbCommand with an update command to update an existing row in the table, using the values in the specified expando.
+		/// </summary>
+		/// <param name="expando">The expando with the fields to update.</param>
+		/// <param name="key">The key value to use for PrimarykeyField comparison.</param>
+		/// <returns>ready to use DbCommand</returns>
+		public virtual DbCommand CreateUpdateCommand(dynamic expando, object key)
+		{
+			return CreateUpdateWhereCommand(expando, string.Format("{0} = {1}", this.PrimaryKeyField, this.PrefixParameterName("0")), key);
+		}
+
+
+		/// <summary>
+		/// Creates a DbCommand with an update command to update an existing row in the table, using the values in the specified expando.
+		/// </summary>
+		/// <param name="expando">The expando with the fields to update.</param>
+		/// <param name="where">The where clause. Default is empty string. Parameters have to be numbered starting with 0, for each value in args.</param>
+		/// <param name="args">The parameter values to use.</param>
+		/// <returns>
+		/// ready to use DbCommand
+		/// </returns>
+		/// <exception cref="System.InvalidOperationException">No parsable object was sent in - could not define any name/value pairs</exception>
+		public virtual DbCommand CreateUpdateWhereCommand(dynamic expando, string where = "", params object[] args)
+		{
+			var fieldSetFragments = new List<string>();
+			var updateQueryPattern = this.GetUpdateQueryPattern();
+			updateQueryPattern += ReadifyWhereClause(where);
+			var result = CreateCommand(updateQueryPattern, null, args);
+			int counter = args.Length > 0 ? args.Length : 0;
+			foreach(var item in (IDictionary<string, object>)expando)
+			{
+				var val = item.Value;
+				if(!item.Key.Equals(PrimaryKeyField, StringComparison.OrdinalIgnoreCase) && item.Value != null)
+				{
+					result.AddParam(val);
+					fieldSetFragments.Add(string.Format("{0} = {1}", item.Key, this.PrefixParameterName(counter.ToString())));
+					counter++;
+				}
+			}
+			if(counter > 0)
+			{
+				result.CommandText = string.Format(updateQueryPattern, TableName, string.Join(", ", fieldSetFragments.ToArray()));
+			}
+			else
+			{
+				throw new InvalidOperationException("No parsable object was sent in - could not define any name/value pairs");
+			}
+			return result;
+		}
+
+
+		/// <summary>
+		/// Creates a DbCommand with a delete statement to delete one or more records from the DB according to the passed-in where clause/key value. 
+		/// </summary>
+		/// <param name="where">The where clause. Can be empty. Ignored if key is set.</param>
+		/// <param name="key">The key. Value to compare with the PrimaryKeyField. If null, <see cref="where"/> is used as the where clause.</param>
+		/// <param name="args">The parameter values.</param>
+		/// <returns>ready to use DbCommand</returns>
+		public virtual DbCommand CreateDeleteCommand(string where = "", object key = null, params object[] args)
+		{
+			var sql = string.Format(this.GetDeleteQueryPattern(), TableName);
+			if(key == null)
+			{
+				sql += ReadifyWhereClause(@where);
+			}
+			else
+			{
+				sql += string.Format("WHERE {0}={1}", this.PrimaryKeyField, this.PrefixParameterName("0"));
+				args = new[] { key };
+			}
+			return CreateCommand(sql, null, args);
+		}
+
+
+		/// <summary>
 		/// Hook, called when IsValid is called
 		/// </summary>
 		/// <param name="item">The item to validate.</param>
@@ -1011,6 +985,92 @@ namespace Massive
 				result.AddParams(args);
 			}
 			return result;
+		}
+
+
+		/// <summary>
+		/// Performs the insert action of the dynamic specified using the connection specified. Expects the connection to be open.
+		/// </summary>
+		/// <param name="connectionToUse">The connection to use, has to be open.</param>
+		/// <param name="transactionToUse">The transaction to use, can be null.</param>
+		/// <param name="toInsert">The dynamic to insert. Is used to create the sql queries</param>
+		private void PerformInsert(DbConnection connectionToUse, DbTransaction transactionToUse, dynamic toInsert)
+		{
+			if(_sequenceValueCallsBeforeMainInsert && !string.IsNullOrEmpty(_primaryKeyFieldSequence))
+			{
+				var sequenceCmd = CreateCommand(this.GetIdentityRetrievalScalarStatement(), connectionToUse);
+				sequenceCmd.Transaction = transactionToUse;
+				((IDictionary<string, object>)toInsert)[this.PrimaryKeyField] = Convert.ToInt32(sequenceCmd.ExecuteScalar());
+			}
+			DbCommand cmd = CreateInsertCommand(toInsert);
+			cmd.Connection = connectionToUse;
+			cmd.Transaction = transactionToUse;
+			if(_sequenceValueCallsBeforeMainInsert || string.IsNullOrEmpty(_primaryKeyFieldSequence))
+			{
+				cmd.ExecuteNonQuery();
+			}
+			else
+			{
+				// simply batch the identity scalar query to the main insert query and execute them as one scalar query. This will both execute the statement and return the sequence value
+				cmd.CommandText += ";" + this.GetIdentityRetrievalScalarStatement();
+				((IDictionary<string, object>)toInsert)[this.PrimaryKeyField] = Convert.ToInt32(cmd.ExecuteScalar());
+			}
+		}
+
+
+		/// <summary>
+		/// Performs the save of the elements in toSave for the Save() and SaveAsNew() methods. 
+		/// </summary>
+		/// <param name="allSavesAreInserts">if set to <c>true</c> it will simply save all elements in toSave using insert queries</param>
+		/// <param name="toSave">The elements to save.</param>
+		/// <returns>the sum of the values returned by the database when executing each command.</returns>
+		private int PerformSave(bool allSavesAreInserts, params object[] toSave)
+		{
+			var result = 0;
+			using(var connectionToUse = OpenConnection())
+			{
+				using(var transactionToUse = connectionToUse.BeginTransaction())
+				{
+					foreach(var o in toSave)
+					{
+						var oAsExpando = o.ToExpando();
+						if(BeforeSave(oAsExpando))
+						{
+							if(!allSavesAreInserts && HasPrimaryKey(o))
+							{
+								// update
+								result += ExecuteDbCommand(CreateUpdateCommand(oAsExpando, GetPrimaryKey(o)), connectionToUse, transactionToUse);
+								Updated(oAsExpando);
+							}
+							else
+							{
+								// insert
+								PerformInsert(connectionToUse, transactionToUse, oAsExpando);
+								Inserted(oAsExpando);
+								result++;
+							}
+						}
+					}
+					transactionToUse.Commit();
+				}
+				connectionToUse.Close();
+			}
+			return result;
+		}
+
+		
+		/// <summary>
+		/// Executes the database command specified
+		/// </summary>
+		/// <param name="cmd">The command.</param>
+		/// <param name="connectionToUse">The connection to use, has to be open.</param>
+		/// <param name="transactionToUse">The transaction to use, can be null.</param>
+		/// <returns></returns>
+		private int ExecuteDbCommand(DbCommand cmd, DbConnection connectionToUse, DbTransaction transactionToUse)
+		{
+			cmd.Connection = connectionToUse;
+			cmd.Transaction = transactionToUse;
+			return cmd.ExecuteNonQuery();
 		}
 
 
@@ -1166,6 +1226,23 @@ namespace Massive
 				this.TableNameWithoutSchema = fragments[fragments.Length - 1];
 			}
 		}
+
+		#region Obsolete methods. Do not use
+		/// <summary>
+		/// Builds a set of Insert and Update commands based on the passed-on objects. These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
+		/// With a PK property (whatever PrimaryKeyField is set to) will be created at UPDATEs
+		/// </summary>
+		[Obsolete("Starting with the version released on 23-jan-2016, this method is obsolete, as it doesn't create an insert statement with a sequence.", true)]
+		public virtual List<DbCommand> BuildCommands(params object[] things)
+		{
+			var commands = new List<DbCommand>();
+			foreach(var item in things)
+			{
+				commands.Add(HasPrimaryKey(item) ? CreateUpdateCommand(item.ToExpando(), GetPrimaryKey(item)) : CreateInsertCommand(item.ToExpando()));
+			}
+			return commands;
+		}
+		#endregion
 
 
 		#region Properties

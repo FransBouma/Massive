@@ -120,6 +120,44 @@ namespace Massive.Tests.Oracle
 			Assert.AreEqual(1, depts.Delete(inserted.DEPTNO));
 		}
 
+		[Test]
+		public void Save_SingleRow()
+		{
+			var depts = new Department();
+			dynamic toSave = new {DNAME = "Massive Dep", LOC = "Beach"}.ToExpando();
+			var result = depts.Save(toSave);
+			Assert.AreEqual(1, result);
+			Assert.IsTrue(toSave.DEPTNO > 0);
+			Assert.AreEqual(1, depts.Delete(toSave.DEPTNO));
+		}
+
+		[Test]
+		public void Save_MultipleRows()
+		{
+			var depts = new Department();
+			object[] toSave = new object[]
+								   {
+									   new {DNAME = "Massive Dep", LOC = "Beach"}.ToExpando(),
+									   new {DNAME = "Massive Dep", LOC = "DownTown"}.ToExpando()
+								   };
+			var result = depts.Save(toSave);
+			Assert.AreEqual(2, result);
+			foreach(dynamic o in toSave)
+			{
+				Assert.IsTrue(o.DEPTNO > 0);
+			}
+
+			// read them back, update them, save them again, 
+			var savedDeps = depts.All(where: "WHERE DEPTNO=:0 OR DEPTNO=:1", args: new object[] {((dynamic)toSave[0]).DEPTNO, ((dynamic)toSave[1]).DEPTNO}).ToList();
+			Assert.AreEqual(2, savedDeps.Count);
+			savedDeps[0].LOC += "C";
+			savedDeps[1].LOC += "C";
+			result = depts.Save(toSave);
+			Assert.AreEqual(2, result);
+			Assert.AreEqual(1, depts.Delete(savedDeps[0].DEPTNO));
+			Assert.AreEqual(1, depts.Delete(savedDeps[1].DEPTNO));
+		}
+
 
 		[TestFixtureTearDown]
 		public void CleanUp()
