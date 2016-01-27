@@ -156,6 +156,23 @@ namespace Massive.Tests
 			Assert.IsTrue(firstRow.ContainsKey("SalesPersonID"));
 		}
 
+		
+		[Test]
+		public void All_WhereSpecification_ToDataTable()
+		{
+			var soh = new SalesOrderHeader();
+			var allRows = soh.All(where: "WHERE CustomerId=@0", args: 30052).ToList();
+			Assert.AreEqual(4, allRows.Count);
+
+			var allRowsAsDataTable = soh.All(where: "WHERE CustomerId=@0", args: 30052).ToDataTable();
+			Assert.AreEqual(allRows.Count, allRowsAsDataTable.Rows.Count);
+			for(int i = 0; i < allRows.Count; i++)
+			{
+				Assert.AreEqual(allRows[i].SalesOrderID, allRowsAsDataTable.Rows[i]["SalesOrderId"]);
+				Assert.AreEqual(30052, allRowsAsDataTable.Rows[i]["CustomerId"]);
+			}
+		}
+
 
 		[Test]
 		public void Find_AllColumns()

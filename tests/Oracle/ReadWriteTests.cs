@@ -160,17 +160,6 @@ namespace Massive.Tests.Oracle
 		}
 
 
-        [Test]
-        public void List_toDataTable()
-        {
-            var depts = new Department();
-            var allRows = depts.All().ToList();
-            var dt = new DataTable();
-
-            dt = allRows.ToDataTable();
-            Assert.Greater(dt.Rows.Count, 1);
-        }
-
 		[TestFixtureTearDown]
 		public void CleanUp()
 		{
