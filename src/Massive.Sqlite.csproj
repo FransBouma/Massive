@@ -48,7 +48,7 @@
     <Compile Include="Massive.Shared.cs" />
     <Compile Include="Massive.Sqlite.cs" />
     <Compile Include="Properties\SharedAssemblyInfo.cs" />
-    <Compile Include="Properties\SqliteAssemblyInfo.cs" />
+    <Compile Include="Properties\SQLiteAssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
