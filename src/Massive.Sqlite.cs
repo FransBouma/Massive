@@ -302,7 +302,7 @@ namespace Massive
         if (Type.GetType ("Mono.Runtime") != null)
           return "Mono.Data.Sqlite"; 
         else
-          return "System.Data.SQLite"; 
+          return "System.Data.SQLite.EF6"; 
       }
 		}
 
