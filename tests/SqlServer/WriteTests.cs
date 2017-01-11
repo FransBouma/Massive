@@ -65,6 +65,13 @@ namespace Massive.Tests
 			Assert.IsNotNull(updatedRow);
 			Assert.AreEqual(inserted.CategoryID, updatedRow.CategoryID);
 			Assert.AreEqual(inserted.Description, updatedRow.Description);
+			// reset description to NULL
+			updatedRow.Description = null;
+			Assert.AreEqual(1, categories.Update(updatedRow, updatedRow.CategoryID), "Update should have affected 1 row");
+			var newUpdatedRow = categories.Find(CategoryID: updatedRow.CategoryID);
+			Assert.IsNotNull(newUpdatedRow);
+			Assert.AreEqual(updatedRow.CategoryID, newUpdatedRow.CategoryID);
+			Assert.AreEqual(updatedRow.Description, newUpdatedRow.Description);
 		}
 
 

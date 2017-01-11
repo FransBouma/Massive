@@ -936,14 +936,21 @@ namespace Massive
 			foreach(var item in (IDictionary<string, object>)expando)
 			{
 				var val = item.Value;
-				if(!item.Key.Equals(PrimaryKeyField, StringComparison.OrdinalIgnoreCase) && item.Value != null)
+				if(!item.Key.Equals(PrimaryKeyField, StringComparison.OrdinalIgnoreCase))
 				{
-					result.AddParam(val);
-					fieldSetFragments.Add(string.Format("{0} = {1}", item.Key, this.PrefixParameterName(counter.ToString())));
-					counter++;
+					if (item.Value == null)
+					{
+						fieldSetFragments.Add(string.Format("{0} = NULL", item.Key));
+					}
+					else
+					{
+						result.AddParam(val);
+						fieldSetFragments.Add(string.Format("{0} = {1}", item.Key, this.PrefixParameterName(counter.ToString())));
+						counter++;
+					}
 				}
 			}
-			if(counter > 0)
+			if (fieldSetFragments.Count > 0)
 			{
 				result.CommandText = string.Format(updateQueryPattern, TableName, string.Join(", ", fieldSetFragments.ToArray()));
 			}
