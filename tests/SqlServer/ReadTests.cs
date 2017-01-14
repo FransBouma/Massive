@@ -31,6 +31,15 @@ namespace Massive.Tests
 
 
 		[Test]
+		public void MaxOnFilteredSet2()
+		{
+			var soh = new SalesOrderHeader();
+			var result = ((dynamic)soh).Max(columns: "SalesOrderID", TerritoryID:10);
+			Assert.AreEqual(75117, result);
+		}
+
+
+		[Test]
 		public void EmptyElement_ProtoType()
 		{
 			var soh = new SalesOrderHeader();

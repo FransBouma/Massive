@@ -828,6 +828,10 @@ namespace Massive
 						case "columns":
 							columns = args[i].ToString();
 							break;
+						case "where":
+							// add it as-is.
+							wherePredicates.Add(args[i].ToString());
+							break;
 						default:
 							wherePredicates.Add(string.Format(" {0} = {1}", name, this.PrefixParameterName(counter.ToString())));
 							whereArguments.Add(args[i]);
