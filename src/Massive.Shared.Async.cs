@@ -853,13 +853,18 @@ namespace Massive
 		{
 			var queryPair = this.BuildPagingQueryPair(sql, primaryKeyField, whereClause, orderByClause, columns, pageSize, currentPage);
 			dynamic result = new ExpandoObject();
-			result.TotalRecords = await ScalarAsync(queryPair.CountQuery, cancellationToken, args).ConfigureAwait(false);
+			// first create the tasks, which will make the queries run immediately but also return immediately. As both queries don't have a correlation, this can speed up
+			// things quite a bit. See issue #270
+			var queryTask = QueryAsync(string.Format(queryPair.MainQuery, columns, TableName), cancellationToken, args).ConfigureAwait(false);
+			var totalRecordsTask = ScalarAsync(queryPair.CountQuery, cancellationToken, args).ConfigureAwait(false);
+			// we then await the tasks to make sure things run in order.
+			result.Items = await queryTask;
+			result.TotalRecords = await totalRecordsTask;
 			result.TotalPages = result.TotalRecords / pageSize;
 			if(result.TotalRecords % pageSize > 0)
 			{
 				result.TotalPages += 1;
 			}
-			result.Items = await QueryAsync(string.Format(queryPair.MainQuery, columns, TableName), cancellationToken, args).ConfigureAwait(false);
 			return result;
 		}
 
