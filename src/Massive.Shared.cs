@@ -601,7 +601,7 @@ namespace Massive
 
 
 		/// <summary>
-		/// Adds a record to the database. You can pass in an Anonymous object, an ExpandoObject, a regular old POCO, or a NameValueColletion from a Request.Form or Request.QueryString
+		/// Adds a record to the database. You can pass in an Anonymous object, an ExpandoObject, a regular old POCO, or a NameValueCollection from a Request.Form or Request.QueryString
 		/// </summary>
 		/// <param name="o">The object to insert.</param>
 		/// <returns>the object inserted as expando. If the PrimaryKeyField is an identity field, it's set in the returned object to the value it received at insert.</returns>
