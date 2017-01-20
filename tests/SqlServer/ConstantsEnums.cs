@@ -9,5 +9,6 @@ namespace Massive.Tests
 	{
 		public static readonly string ReadTestConnectionStringName = "AdventureWorks.ConnectionString.SQL Server (SqlClient)";
 		public static readonly string WriteTestConnectionStringName = "MassiveWriteTests.ConnectionString.SQL Server (SqlClient)";
+		public static readonly string SPTestConnectionStringName = "MassiveSPTests.ConnectionString.SQL Server (SqlClient)";
 	}
 }

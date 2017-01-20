@@ -44,10 +44,13 @@ namespace Massive
 		/// </summary>
 		/// <param name="cmd">The command to add the parameter to.</param>
 		/// <param name="value">The value to add as a parameter to the command.</param>
-		public static void AddParam(this DbCommand cmd, object value)
+		/// <param name="name">The parameter name (optional).</param>
+		/// <param name="direction">The parameter direction (optional).</param>
+		public static void AddParam(this DbCommand cmd, object value, string name = null, System.Data.ParameterDirection direction = System.Data.ParameterDirection.Input)
 		{
 			var p = cmd.CreateParameter();
-			p.ParameterName = string.Format("@{0}", cmd.Parameters.Count);
+			p.ParameterName = string.Format("@{0}", name ?? cmd.Parameters.Count.ToString());
+			p.Direction = direction;
 			if(value == null)
 			{
 				p.Value = DBNull.Value;

@@ -108,6 +108,10 @@ namespace Massive
 				return o;
 			}
 			var result = new ExpandoObject();
+			if (o == null)
+			{
+				return result;
+			}
 			var d = (IDictionary<string, object>)result; //work with the Expando as a Dictionary
 			if(o.GetType() == typeof(NameValueCollection) || o.GetType().IsSubclassOf(typeof(NameValueCollection)))
 			{
