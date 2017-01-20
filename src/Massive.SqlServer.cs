@@ -40,7 +40,7 @@ namespace Massive
 	public static partial class ObjectExtensions
 	{
 		/// <summary>
-		/// Extension for adding single parameter. 
+		/// Extension for adding single parameter.
 		/// </summary>
 		/// <param name="cmd">The command to add the parameter to.</param>
 		/// <param name="value">The value to add as a parameter to the command.</param>
