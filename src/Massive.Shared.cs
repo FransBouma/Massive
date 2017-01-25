@@ -978,7 +978,7 @@ namespace Massive
 			var sql = string.Format(this.GetDeleteQueryPattern(), TableName);
 			if(key == null)
 			{
-				sql += ReadifyWhereClause(@where);
+				sql += ReadifyWhereClause(where);
 			}
 			else
 			{
