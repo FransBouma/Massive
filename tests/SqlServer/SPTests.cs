@@ -37,8 +37,8 @@ namespace Massive.Tests
 
 		[Test]
 		/// <remarks>
-		/// The type of each param must be implicitly specified by a value, even for output params (if the input object contains
-		/// a typed field with value of null the type will be ignored - this is the same behaviour as in other parts of Massive).
+		/// The type of each param must be implicitly specified by a value, even for output params (if any xParams object contains a
+		/// typed field with a null value the type of the field is not used - this is the same behaviour as in other parts of Massive).
 		/// </remarks>
 		public void SP_ParamDirections()
 		{
