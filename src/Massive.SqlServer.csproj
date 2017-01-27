@@ -46,6 +46,7 @@
     <Compile Include="Massive.Shared.Async.cs" />
     <Compile Include="Massive.Shared.cs" />
     <Compile Include="Massive.SqlServer.cs" />
+    <Compile Include="Massive.SP.cs" />
     <Compile Include="Properties\SharedAssemblyInfo.cs" />
     <Compile Include="Properties\SqlServerAssemblyInfo.cs" />
   </ItemGroup>

@@ -145,16 +145,8 @@ namespace Massive.Tests
 		[TestFixtureTearDown]
 		public void CleanUp()
 		{
-			// no way to call a proc easily at the moment, which should change in the future. 
 			var db = new DynamicModel(TestConstants.WriteTestConnectionStringName);
-			using(var conn = db.OpenConnection())
-			{
-				var cmd = conn.CreateCommand();
-				cmd.CommandText = "dbo.pr_clearAll";
-				cmd.CommandType = CommandType.StoredProcedure;
-				cmd.ExecuteNonQuery();
-				conn.Close();
-			}
+			db.ExecuteSP("pr_clearAll");
 		}
 	}
 }
