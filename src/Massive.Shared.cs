@@ -503,21 +503,14 @@ namespace Massive
 		/// <summary>
 		/// Returns a single row from the database
 		/// </summary>
-		/// <param name="where">The where clause.</param>
-		/// <param name="args">The arguments.</param>
-		/// <returns></returns>
-		public virtual dynamic Single(string where, params object[] args)
-		{
-			return All(where, limit: 1, args: args).FirstOrDefault();
-		}
-
-
-		/// <summary>
-		/// Returns a single row from the database
-		/// </summary>
 		/// <param name="key">The pk value.</param>
 		/// <param name="columns">The columns to fetch.</param>
 		/// <returns></returns>
+		/// <remarks>
+		/// Many other ways of calling Single using named arguments (e.g. orderby, where, columns, args) are supported by
+		/// TryInvokeMember, examples in tests/SqlServer/ReadTest.cs.
+		/// This method adds additional support for specifying primary key of single row in first unnamed argument.
+		/// </remarks>
 		public virtual dynamic Single(object key, string columns = "*")
 		{
 			return All(this.GetPkComparisonPredicateQueryFragment(), limit: 1, columns: columns, args: new[] { key }).FirstOrDefault();
@@ -829,8 +822,13 @@ namespace Massive
 							columns = args[i].ToString();
 							break;
 						case "where":
-							// add it as-is.
-							wherePredicates.Add(args[i].ToString());
+							string where = args[i].ToString();
+							// will not work correctly if @ is used for anything other than numbered parameter names within where clause
+							counter += where.Count(c => c == '@');
+							wherePredicates.Add(where);
+							break;
+						case "args":
+							whereArguments.Add(args[i]);
 							break;
 						default:
 							wherePredicates.Add(string.Format(" {0} = {1}", name, this.PrefixParameterName(counter.ToString())));

@@ -22,19 +22,19 @@ namespace Massive.Tests
 
 
 		[Test]
-		public void MaxOnFilteredSet()
+		public void MaxOnFilteredSet_WhereSpecification()
 		{
 			var soh = new SalesOrderHeader();
-			var result = ((dynamic)soh).Max(columns: "SalesOrderID", where: "SalesOrderID<100000");
+			var result = ((dynamic)soh).Max(columns: "SalesOrderID", where: "SalesOrderID < @0", args: 100000);
 			Assert.AreEqual(75123, result);
 		}
 
 
 		[Test]
-		public void MaxOnFilteredSet2()
+		public void MaxOnFilteredSet_NamedArgument()
 		{
 			var soh = new SalesOrderHeader();
-			var result = ((dynamic)soh).Max(columns: "SalesOrderID", TerritoryID:10);
+			var result = ((dynamic)soh).Max(columns: "SalesOrderID", TerritoryID: 10);
 			Assert.AreEqual(75117, result);
 		}
 
@@ -189,6 +189,64 @@ namespace Massive.Tests
 				Assert.AreEqual(allRows[i].SalesOrderID, allRowsAsDataTable.Rows[i]["SalesOrderId"]);
 				Assert.AreEqual(30052, allRowsAsDataTable.Rows[i]["CustomerId"]);
 			}
+		}
+
+
+		[Test]
+		public void Single()
+		{
+			dynamic soh = new SalesOrderHeader();
+			var singleInstance = soh.Single();
+			Assert.IsNotNull(singleInstance);
+		}
+
+
+		[Test]
+		public void Single_PKSpecification()
+		{
+			dynamic soh = new SalesOrderHeader();
+			var singleInstance = soh.Single(43666);
+			Assert.AreEqual(43666, singleInstance.SalesOrderID);
+		}
+
+
+		[Test]
+		public void Single_PKSpecification_ColumnsSpecification()
+		{
+			dynamic soh = new SalesOrderHeader();
+			var singleInstance = soh.Single(43666, columns: "SalesOrderID as SOID, Status, SalesPersonID");
+			Assert.AreEqual(43666, singleInstance.SOID);
+			var siAsDict = (IDictionary<string, object>)singleInstance;
+			Assert.AreEqual(3, siAsDict.Count);
+		}
+
+
+		[Test]
+		public void Single_NoMatch()
+		{
+			dynamic soh = new SalesOrderHeader();
+			var singleInstance = soh.Single(-1);
+			Assert.IsNull(singleInstance);
+		}
+
+
+		[Test]
+		public void Single_WhereSpecification()
+		{
+			dynamic soh = new SalesOrderHeader();
+			var singleInstance = soh.Single(where: "SalesOrderID=@0", args: 43666);
+			Assert.AreEqual(43666, singleInstance.SalesOrderID);
+		}
+
+
+		[Test]
+		public void Single_WhereSpecification_ColumnsSpecification()
+		{
+			dynamic soh = new SalesOrderHeader();
+			var singleInstance = soh.Single(where: "SalesOrderID = @0", columns: "SalesOrderID as SOID, Status, SalesPersonID", args: 43666);
+			Assert.AreEqual(43666, singleInstance.SOID);
+			var siAsDict = (IDictionary<string, object>)singleInstance;
+			Assert.AreEqual(3, siAsDict.Count);
 		}
 
 
