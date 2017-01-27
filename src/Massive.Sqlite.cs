@@ -297,7 +297,13 @@ namespace Massive
 		/// </summary>
 		protected virtual string DbProviderFactoryName
 		{
-			get { return "System.Data.SQLite"; }
+			get 
+      { 
+        if (Type.GetType ("Mono.Runtime") != null)
+          return "Mono.Data.Sqlite"; 
+        else
+          return "System.Data.SQLite"; 
+      }
 		}
 
 

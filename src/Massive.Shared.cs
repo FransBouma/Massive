@@ -1419,7 +1419,10 @@ namespace Massive
 		/// <returns></returns>
 		public string GetProviderName(string connectionStringName)
 		{
-			var providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
+			string providerName = null;
+      var connectionStringSettings = ConfigurationManager.ConnectionStrings[connectionStringName];
+      if (connectionStringSettings != null)
+			  providerName = connectionStringSettings.ProviderName;
 			return !string.IsNullOrWhiteSpace(providerName) ? providerName : null;
 		}
 
@@ -1430,7 +1433,11 @@ namespace Massive
 		/// <returns></returns>
 		public string GetConnectionString(string connectionStringName)
 		{
-			return ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
+      var connectionStringSettings = ConfigurationManager.ConnectionStrings[connectionStringName];
+      if (connectionStringSettings != null)
+			  return connectionStringSettings.ConnectionString;
+      else
+			  return "";
 		}
 	}
 }
