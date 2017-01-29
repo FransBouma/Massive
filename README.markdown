@@ -48,6 +48,7 @@ If you want to add new features to Massive or have a fix for a bug, that's great
 * Code defensively. If your code accepts input from the user, be absolutely sure this input is passed on as parameters and user crap like null values and name mismatches are covered. You don't need to throw a myriad of exceptions, but at least make a bit of an effort.
 * If it takes less time for me to write the code myself than to look at your PR, tell you how to change things and go into an endless bikeshedding debate with you, chances are I'll write it myself instead of debating things with you. 
 * If you add to the API, it's recommended you add a small example to the documentation in this readme below. Some people think tests are documentation, but tests are tests, they test things. Documentation document things, so it's preferable to have documentation as well. 
+* For the databases which are currently supported there are free downloads available. You can freely assume code which works on SQL Server Express and Oracle Express / developer edition to work on the paid commercial versions, unless you use a feature only available in those paid versions. 
 
 ## Usage
 Note, the following is a work in progress and doesn't contain all the new API methods. It is primarily the original text written by Conery, and I'll update it when I have time. If you're unsure how to use a given method, please look at the [tests](https://github.com/FransBouma/Massive/tree/v2.0/tests).  
