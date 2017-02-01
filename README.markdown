@@ -179,7 +179,7 @@ table.Save(drinks.ToArray());
 	
 Named Argument Query Syntax
 -------------------
-I recently added the ability to run more friendly queries using Named Arguments and C#4's `DynamicObject.TryInvokeMember` Method-on-the-fly syntax. In an earlier version this was trying to be like Rails ActiveRecord (so, calls were like `var drinks = table.FindBy_CategoryID(8);`), but I figured "C# is NOT Ruby, and Named Arguments can be a lot more clear" (calls like `var drinks = table.FindBy(CategoryID:8);`). In addition, Mark Rendle's Simple.Data is already supporting ActiveRecord style syntax, so ... why duplicate things?
+I recently added the ability to run more friendly queries using Named Arguments and C#4's `DynamicObject.TryInvokeMember` Method-on-the-fly syntax. In an earlier version this was trying to be like Rails ActiveRecord (so, calls were like `var drinks = table.FindBy_CategoryID(8);`), but I figured "C# is NOT Ruby, and Named Arguments can be a lot more clear" (so now calls look like `var drinks = table.FindBy(CategoryID:8);`, more examples below). In addition, Mark Rendle's Simple.Data is already supporting ActiveRecord style syntax, so ... why duplicate things?
 
 If your needs are more complicated - I would suggest just passing in your own SQL with Query().
 
