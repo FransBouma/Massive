@@ -368,7 +368,7 @@ namespace Massive
 
 
 		/// <summary>
-		/// Returns and OpenConnection
+		/// Returns an OpenConnection
 		/// </summary>
 		public virtual DbConnection OpenConnection()
 		{
@@ -942,7 +942,7 @@ namespace Massive
 				var val = item.Value;
 				if(!item.Key.Equals(PrimaryKeyField, StringComparison.OrdinalIgnoreCase))
 				{
-					if (item.Value == null)
+					if(item.Value == null)
 					{
 						fieldSetFragments.Add(string.Format("{0} = NULL", item.Key));
 					}
@@ -954,7 +954,7 @@ namespace Massive
 					}
 				}
 			}
-			if (fieldSetFragments.Count > 0)
+			if(fieldSetFragments.Count > 0)
 			{
 				result.CommandText = string.Format(updateQueryPattern, TableName, string.Join(", ", fieldSetFragments.ToArray()));
 			}
@@ -1119,7 +1119,7 @@ namespace Massive
 			return result;
 		}
 
-		
+
 		/// <summary>
 		/// Executes the database command specified
 		/// </summary>
