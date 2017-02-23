@@ -193,14 +193,7 @@ namespace Massive
 		/// </returns>
 		protected virtual string GetSelectQueryPattern(int limit, string whereClause, string orderByClause)
 		{
-			var normalQuery = string.Format("SELECT {{0}} FROM {{1}}{0}{1}", whereClause, orderByClause);
-			if(limit > 0)
-			{
-				// we have to wrap the query and then apply the rownum filter, as aggregates etc. otherwise aren't going to contain the right values, as they're then applied to the
-				// limited set, not the complete set!
-				return string.Format("{0} LIMIT {1}", normalQuery, limit);
-			}
-			return normalQuery;
+			return string.Format("SELECT {{0}} FROM {{1}}{0}{1}{2}", whereClause, orderByClause, limit > 0 ? " LIMIT " + limit : string.Empty);
 		}
 
 
