@@ -84,7 +84,7 @@
     <Compile Include="WriteTests.cs" />
     <Compile Include="ConstantsEnums.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="TableClasses\Actor.cs" />
+    <Compile Include="TableClasses\Film.cs" />
     <Compile Include="TableClasses\Category.cs" />
     <Compile Include="TableClasses\Product.cs" />
   </ItemGroup>

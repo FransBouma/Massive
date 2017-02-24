@@ -115,15 +115,9 @@ namespace Massive
 			dynamic result = null;
 			switch(defaultValue.ToUpper())
 			{
-				// TO DO: Confirm which of these are supported, and whether we need to add support for MySQL UUID() fn as default too
-				case "CURRENT_TIME":
-					result = DateTime.UtcNow.ToString("HH:mm:ss");
-					break;
-				case "CURRENT_DATE":
-					result = DateTime.UtcNow.ToString("yyyy-MM-dd");
-					break;
+				// TO DO: Confirm whether CURRENT_TIME and CURRENT_DATE and the MySQL UUID() function are supported; add them if so
 				case "CURRENT_TIMESTAMP":
-					result = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+					result = DateTime.Now;
 					break;
 			}
 			return result;
@@ -283,7 +277,7 @@ namespace Massive
 		/// </summary>
 		protected virtual string DbProviderFactoryName
 		{
-			get { return "System.Data.SqlClient"; }
+			get { return "MySql.Data.MySqlClient"; }
 		}
 
 		/// <summary>

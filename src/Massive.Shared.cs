@@ -778,11 +778,14 @@ namespace Massive
 		/// <param name="where">The where clause. Default is empty string. Parameters have to be numbered starting with 0, for each value in args.</param>
 		/// <param name="args">The parameters used in the where clause.</param>
 		/// <returns>number of rows returned after executing the count query</returns>
+		/// <remarks>
+		/// In order to retain cross-DB compatibility we are coercing long values (e.g. MySql) to int values, note that a simple cast would always exception regardless of the value.
+		/// </remarks>
 		public int Count(string tableName = "", string where = "", params object[] args)
 		{
 			var scalarQueryPattern = this.GetCountRowQueryPattern();
 			scalarQueryPattern += ReadifyWhereClause(where);
-			return (int)Scalar(string.Format(scalarQueryPattern, string.IsNullOrEmpty(tableName) ? this.TableName : tableName), args);
+			return Convert.ToInt32(Scalar(string.Format(scalarQueryPattern, string.IsNullOrEmpty(tableName) ? this.TableName : tableName), args));
 		}
 
 
