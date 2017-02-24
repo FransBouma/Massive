@@ -13,7 +13,7 @@ namespace Massive.Tests.MySql.TableClasses
 
 
 		public Category(bool includeSchema) :
-			base(TestConstants.WriteTestConnectionStringName, includeSchema ? "mwt.Categories" : "Categories", "CategoryID")
+			base(TestConstants.WriteTestConnectionStringName, includeSchema ? "MassiveWriteTests.Categories" : "Categories", "CategoryID")
 		{
 		}
 	}

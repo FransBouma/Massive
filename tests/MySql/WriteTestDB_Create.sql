@@ -1,110 +1,41 @@
-﻿CREATE DATABASE [MassiveWriteTests] /* ON PRIMARY (NAME=MassiveWriteTests_dat, FILENAME='c:\mycatalogs\MassiveWriteTests.mdf', SIZE=10MB) */
-GO
-
-
-USE [MassiveWriteTests]
-GO
--- ----------------------------------------------------------------------------------------------------------------
--- Schema 'mwt'
+﻿-- ----------------------------------------------------------------------------------------------------------------
+-- Schema 'MassiveWriteTests'
 -- ----------------------------------------------------------------------------------------------------------------
 
--- -------[ Tables ]-----------------------------------------------------------------------------------------------
+DROP SCHEMA IF EXISTS `MassiveWriteTests`;
+CREATE SCHEMA `MassiveWriteTests`;
+USE `MassiveWriteTests`;
 
-CREATE TABLE [mwt].[Categories] 
+-- -------` Tables `-----------------------------------------------------------------------------------------------
+
+CREATE TABLE `Categories` 
 (
-	[CategoryID] [int] IDENTITY (1,1) NOT NULL, 
-	[CategoryName] [nvarchar] (15) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL, 
-	[Description] [ntext] NULL, 
-	[Picture] [image] NULL 
-) ON [PRIMARY]
-GO
+	`CategoryID` int unsigned NOT NULL AUTO_INCREMENT, 
+	`CategoryName` varchar(15) NOT NULL, 
+	`Description` text NULL, 
+	`Picture` blob NULL,
+	PRIMARY KEY (`CategoryID`)
+);
 
-CREATE TABLE [mwt].[Products] 
+CREATE TABLE `Products` 
 (
-	[ProductID] [int] IDENTITY (1,1) NOT NULL, 
-	[ProductName] [nvarchar] (40) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL, 
-	[CategoryID] [int] NULL, 
-	[QuantityPerUnit] [nvarchar] (20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL, 
-	[UnitPrice] [money] NULL, 
-	[UnitsInStock] [smallint] NULL, 
-	[UnitsOnOrder] [smallint] NULL, 
-	[ReorderLevel] [smallint] NULL, 
-	[Discontinued] [bit] NOT NULL 
-) ON [PRIMARY]
-GO
+	`ProductID` int unsigned NOT NULL AUTO_INCREMENT, 
+	`ProductName` varchar(40) NOT NULL, 
+	`CategoryID` int unsigned NULL, 
+	`QuantityPerUnit` varchar(20) NULL, 
+	`UnitPrice` decimal(13,2) NULL DEFAULT 0, 
+	`UnitsInStock` smallint NULL DEFAULT 0, 
+	`UnitsOnOrder` smallint NULL DEFAULT 0, 
+	`ReorderLevel` smallint NULL DEFAULT 0, 
+	`Discontinued` bit NOT NULL DEFAULT 0,
+	PRIMARY KEY (`ProductID`),
+	CONSTRAINT `FK_Products_Categories` FOREIGN KEY (`CategoryID`) REFERENCES `Categories` (`CategoryID`)
+);
 
--- ###############################################################################################################
--- Create statements for Primary key constraints, Foreign key constraints, Unique constraints and Default Values
--- ###############################################################################################################
--- ----------------------------------------------------------------------------------------------------------------
--- Catalog 'MassiveWriteTests'
--- ----------------------------------------------------------------------------------------------------------------
-
-USE [MassiveWriteTests]
-GO
--- ----------------------------------------------------------------------------------------------------------------
--- Primary Key constraints for schema 'mwt'
--- ----------------------------------------------------------------------------------------------------------------
-
-ALTER TABLE [mwt].[Categories] WITH NOCHECK 
-	ADD CONSTRAINT [PK_Categories] PRIMARY KEY CLUSTERED 
-	( 
-		[CategoryID] 
-	) ON [PRIMARY]
-GO
-
-ALTER TABLE [mwt].[Products] WITH NOCHECK 
-	ADD CONSTRAINT [PK_Products] PRIMARY KEY CLUSTERED 
-	( 
-		[ProductID] 
-	) ON [PRIMARY]
-GO
--- ----------------------------------------------------------------------------------------------------------------
--- Unique constraints for schema 'mwt'
--- ----------------------------------------------------------------------------------------------------------------
--- ----------------------------------------------------------------------------------------------------------------
--- Default values for schema 'mwt'
--- ----------------------------------------------------------------------------------------------------------------
-ALTER TABLE [mwt].[Products] 
-	ADD CONSTRAINT [DV_Products_UnitPrice] DEFAULT (0) FOR [UnitPrice]
-GO
-ALTER TABLE [mwt].[Products] 
-	ADD CONSTRAINT [DV_Products_UnitsInStock] DEFAULT (0) FOR [UnitsInStock]
-GO
-ALTER TABLE [mwt].[Products] 
-	ADD CONSTRAINT [DV_Products_UnitsOnOrder] DEFAULT (0) FOR [UnitsOnOrder]
-GO
-ALTER TABLE [mwt].[Products] 
-	ADD CONSTRAINT [DV_Products_ReorderLevel] DEFAULT (0) FOR [ReorderLevel]
-GO
-ALTER TABLE [mwt].[Products] 
-	ADD CONSTRAINT [DV_Products_Discontinued] DEFAULT (0) FOR [Discontinued]
-GO
--- ----------------------------------------------------------------------------------------------------------------
--- All foreign Key constraints
--- ----------------------------------------------------------------------------------------------------------------
-
-ALTER TABLE [mwt].[Products] 
-	ADD CONSTRAINT [FK_Products_Categories] FOREIGN KEY
-	(
-		[CategoryID] 
-	)
-	REFERENCES [mwt].[Categories]
-	(
-		[CategoryID] 
-	)
-	ON DELETE NO ACTION
-	ON UPDATE NO ACTION
-GO
-
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-
-CREATE PROCEDURE [mwt].[pr_clearAll]
-AS
-DELETE FROM Products;
-DELETE FROM Categories;
-
-GO
+DELIMITER //
+CREATE PROCEDURE `pr_clearAll`()
+BEGIN
+	DELETE FROM Products;
+	DELETE FROM Categories;
+END //
+DELIMITER ;

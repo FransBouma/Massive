@@ -150,7 +150,7 @@ namespace Massive.Tests.MySql
 			using(var conn = db.OpenConnection())
 			{
 				var cmd = conn.CreateCommand();
-				cmd.CommandText = "dbo.pr_clearAll";
+				cmd.CommandText = "pr_clearAll";
 				cmd.CommandType = CommandType.StoredProcedure;
 				cmd.ExecuteNonQuery();
 				conn.Close();
