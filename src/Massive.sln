@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Massive.PostgreSql", "Massi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Massive.Sqlite", "Massive.Sqlite.csproj", "{F8B864EA-8E35-4BD4-86A0-5ABCF44CF6C7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Massive.MySql", "Massive.MySql.csproj", "{517CFB4F-92FA-4752-B794-CE4AD58E4E30}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +35,10 @@ Global
 		{F8B864EA-8E35-4BD4-86A0-5ABCF44CF6C7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F8B864EA-8E35-4BD4-86A0-5ABCF44CF6C7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F8B864EA-8E35-4BD4-86A0-5ABCF44CF6C7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{517CFB4F-92FA-4752-B794-CE4AD58E4E30}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{517CFB4F-92FA-4752-B794-CE4AD58E4E30}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{517CFB4F-92FA-4752-B794-CE4AD58E4E30}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{517CFB4F-92FA-4752-B794-CE4AD58E4E30}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
