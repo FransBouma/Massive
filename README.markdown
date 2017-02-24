@@ -23,6 +23,7 @@ Massive has no external direct dependencies, just get the code, compile it with 
 * PostgreSQL: [Npgsql](http://www.npgsql.org/). The Npgsql distribution contains an installer, offered at the 
 'releases' section. This installer will add the required DbProviderFactory reference and will add the npgsql dll to the gac. 
 * SQLite: Massive uses the official SQLite .NET provider. [Please read the official documentation](https://system.data.sqlite.org/index.html/doc/trunk/www/index.wiki) on that provider to get started. 
+* MySQL: Massive uses the standard [ADO.NET Driver for MySQL](https://dev.mysql.com/downloads/connector/net/). The provider name is `MySql.Data.MySqlClient`.
 
 ## Migrating from v1.0 to v2.0
 If you're using v1.0 currently and want to migrate to v2.0, please take a look at [What's new in v2.0](https://github.com/FransBouma/Massive/wiki/v2.0-Whats-new) page for more details about whether you'll run into the changes made. In general the breaking changes will be minor, if any. 
