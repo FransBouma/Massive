@@ -8,7 +8,7 @@ namespace Massive.Tests.MySql
 {
 	public static class TestConstants
 	{
-		public static readonly string ReadTestConnectionStringName = "Sakila.ConnectionString.Oracle (MySql.Data.MySqlClient)";
-		public static readonly string WriteTestConnectionStringName = "MassiveWriteTests.ConnectionString.Oracle (MySql.Data.MySqlClient)";
+		public static readonly string ReadTestConnectionStringName = "Sakila.ConnectionString.MySql (MySql.Data.MySqlClient)";
+		public static readonly string WriteTestConnectionStringName = "MassiveWriteTests.ConnectionString.MySql (MySql.Data.MySqlClient)";
 	}
 }
