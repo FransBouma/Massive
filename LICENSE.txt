@@ -1,7 +1,7 @@
 Massive v2.0. 
 Licensed to you under the New BSD License
 http://www.opensource.org/licenses/bsd-license.php
-Massive is copyright (c) 2009-2016 various contributors.
+Massive is copyright (c) 2009-2017 various contributors.
 All rights reserved.
 See for sourcecode, full history and contributors list: https://github.com/FransBouma/Massive
 
