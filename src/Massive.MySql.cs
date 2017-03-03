@@ -115,7 +115,6 @@ namespace Massive
 			dynamic result = null;
 			switch(defaultValue.ToUpper())
 			{
-				// TO DO: Confirm whether CURRENT_TIME and CURRENT_DATE and the MySQL UUID() function are supported; add them if so
 				case "CURRENT_TIMESTAMP":
 					result = DateTime.Now;
 					break;
