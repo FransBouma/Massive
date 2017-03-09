@@ -12,6 +12,11 @@ using SD.Tools.OrmProfiler.Interceptor;
 
 namespace Massive.Tests.MySql
 {
+	/// <remarks>
+	/// These tests are run automatically on both providers (MySql.Data.MySqlClient and Devart.Data.MySql) using
+	/// two separate projects, which share most files. We cannot change the value of DbProviderFactoryName between
+	/// the two projects but we don't need to as long as we specify the provider name in the connection strings.
+	/// </remarks>
 	[TestFixture]
 	public class WriteTests
 	{
