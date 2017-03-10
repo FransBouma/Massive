@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Massive.Tests.Sqlite", "Sql
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Massive.Tests.MySql", "MySql\Massive.Tests.MySql.csproj", "{67ED2122-3504-4C3C-ADE1-A61F48C6AFB5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Massive.Tests.MySql.Devart", "MySql.Devart\Massive.Tests.MySql.Devart.csproj", "{5CD0AE4F-B3E6-4029-896C-49573740BB72}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -61,6 +63,14 @@ Global
 		{67ED2122-3504-4C3C-ADE1-A61F48C6AFB5}.Release|Any CPU.Build.0 = Release|Any CPU
 		{67ED2122-3504-4C3C-ADE1-A61F48C6AFB5}.Release|x64.ActiveCfg = Release|x64
 		{67ED2122-3504-4C3C-ADE1-A61F48C6AFB5}.Release|x64.Build.0 = Release|x64
+		{5CD0AE4F-B3E6-4029-896C-49573740BB72}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5CD0AE4F-B3E6-4029-896C-49573740BB72}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5CD0AE4F-B3E6-4029-896C-49573740BB72}.Debug|x64.ActiveCfg = Debug|x64
+		{5CD0AE4F-B3E6-4029-896C-49573740BB72}.Debug|x64.Build.0 = Debug|x64
+		{5CD0AE4F-B3E6-4029-896C-49573740BB72}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5CD0AE4F-B3E6-4029-896C-49573740BB72}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5CD0AE4F-B3E6-4029-896C-49573740BB72}.Release|x64.ActiveCfg = Release|x64
+		{5CD0AE4F-B3E6-4029-896C-49573740BB72}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
