@@ -1,4 +1,4 @@
-Massive, a small, happy, dynamic MicroORM for .NET that will love you forever
+﻿Massive, a small, happy, dynamic MicroORM for .NET that will love you forever
 =============================================================================
 
 Massive was started by Rob Conery and [has been transfered](https://twitter.com/robconery/status/573139252487323648) to Frans Bouma on March 4th, 2015. It's a small MicroORM based on the `Expando` or `dynamic` type and allows you to work with your database with almost no effort. The design is based on the idea that the code provided to you in this repository is a start: you get up and running in no-time and from there edit and alter it as you see fit.  
