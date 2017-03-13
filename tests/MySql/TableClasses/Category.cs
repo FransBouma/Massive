@@ -7,13 +7,13 @@ namespace Massive.Tests.MySql.TableClasses
 {
 	public class Category : DynamicModel
 	{
-		public Category() : this(true)
+		public Category(string providerName) : this(providerName, true)
 		{
 		}
 
 
-		public Category(bool includeSchema) :
-			base(TestConstants.WriteTestConnectionStringName, includeSchema ? "MassiveWriteTests.Categories" : "Categories", "CategoryID")
+		public Category(string providerName, bool includeSchema) :
+			base(string.Format(TestConstants.WriteTestConnectionStringName, providerName), includeSchema ? "MassiveWriteTests.Categories" : "Categories", "CategoryID")
 		{
 		}
 	}

@@ -12,20 +12,32 @@ using SD.Tools.OrmProfiler.Interceptor;
 
 namespace Massive.Tests.MySql
 {
-	[TestFixture]
+	[TestFixture("MySql.Data.MySqlClient")]
+	[TestFixture("Devart.Data.MySql")]
 	public class WriteTests
 	{
+		private string ProviderName;
+
+		/// <summary>
+		/// Initialise tests for given provider
+		/// </summary>
+		/// <param name="providerName">Provider name</param>
+		public WriteTests(string providerName)
+		{
+			ProviderName = providerName;
+		}
+
 		[TestFixtureSetUp]
 		public void Setup()
 		{
-			InterceptorCore.Initialize("Massive SqlServer write tests .NET 4.0");
+			InterceptorCore.Initialize("Massive MySql write tests .NET 4.0");
 		}
 
 
 		[Test]
 		public void Insert_SingleRow()
 		{
-			var categories = new Category();
+			var categories = new Category(ProviderName);
 			var inserted = categories.Insert(new { CategoryName = "Cool stuff", Description = "You know... cool stuff! Cool. n. stuff." });
 			int insertedCategoryID = inserted.CategoryID;
 			Assert.IsTrue(insertedCategoryID > 0);
@@ -35,7 +47,7 @@ namespace Massive.Tests.MySql
 		[Test]
 		public void Insert_MultipleRows()
 		{
-			var categories = new Category();
+			var categories = new Category(ProviderName);
 			var toInsert = new List<dynamic>();
 			toInsert.Add(new { CategoryName = "Cat Insert_MR", Description = "cat 1 desc" });
 			toInsert.Add(new { CategoryName = "Cat Insert_MR", Description = "cat 2 desc" });
@@ -53,7 +65,7 @@ namespace Massive.Tests.MySql
 		[Test]
 		public void Update_SingleRow()
 		{
-			dynamic categories = new Category();
+			dynamic categories = new Category(ProviderName);
 			// insert something to update first. 
 			var inserted = categories.Insert(new { CategoryName = "Cool stuff", Description = "You know... cool stuff! Cool. n. stuff." });
 			int insertedCategoryID = inserted.CategoryID;
@@ -79,7 +91,7 @@ namespace Massive.Tests.MySql
 		public void Update_MultipleRows()
 		{
 			// first insert 2 categories and 4 products, one for each category
-			var categories = new Category();
+			var categories = new Category(ProviderName);
 			var insertedCategory1 = categories.Insert(new { CategoryName = "Category 1", Description = "Cat 1 desc" });
 			int category1ID = insertedCategory1.CategoryID;
 			Assert.IsTrue(category1ID > 0);
@@ -87,7 +99,7 @@ namespace Massive.Tests.MySql
 			int category2ID = insertedCategory2.CategoryID;
 			Assert.IsTrue(category2ID > 0);
 
-			var products = new Product();
+			var products = new Product(ProviderName);
 			for(int i = 0; i < 4; i++)
 			{
 				var category = i % 2 == 0 ? insertedCategory1 : insertedCategory2;
@@ -109,7 +121,7 @@ namespace Massive.Tests.MySql
 		public void Delete_SingleRow()
 		{
 			// first insert 2 categories
-			var categories = new Category();
+			var categories = new Category(ProviderName);
 			var insertedCategory1 = categories.Insert(new { CategoryName = "Cat Delete_SR", Description = "cat 1 desc" });
 			int category1ID = insertedCategory1.CategoryID;
 			Assert.IsTrue(category1ID > 0);
@@ -128,7 +140,7 @@ namespace Massive.Tests.MySql
 		public void Delete_MultiRow()
 		{
 			// first insert 2 categories
-			var categories = new Category();
+			var categories = new Category(ProviderName);
 			var insertedCategory1 = categories.Insert(new { CategoryName = "Cat Delete_MR", Description = "cat 1 desc" });
 			int category1ID = insertedCategory1.CategoryID;
 			Assert.IsTrue(category1ID > 0);
@@ -146,7 +158,7 @@ namespace Massive.Tests.MySql
 		public void CleanUp()
 		{
 			// no way to call a proc easily at the moment, which should change in the future. 
-			var db = new DynamicModel(TestConstants.WriteTestConnectionStringName);
+			var db = new DynamicModel(string.Format(TestConstants.WriteTestConnectionStringName, ProviderName));
 			using(var conn = db.OpenConnection())
 			{
 				var cmd = conn.CreateCommand();
