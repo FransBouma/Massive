@@ -16,9 +16,21 @@ namespace Massive.Tests.Oracle
 	/// <remarks>These tests run on x64 by default, as by default ODP.NET installs x64 only. If you have x86 ODP.NET installed, change the build directive to AnyCPU
 	/// in the project settings.<br/>
 	/// These tests use the SCOTT test DB shipped by Oracle. Your values may vary though. </remarks>
-	[TestFixture]
+	[TestFixture("Oracle.ManagedDataAccess.Client")]
+	[TestFixture("Oracle.DataAccess.Client")]
 	public class ReadWriteTests
 	{
+		private string ProviderName;
+
+		/// <summary>
+		/// Initialise tests for given provider
+		/// </summary>
+		/// <param name="providerName">Provider name</param>
+		public ReadWriteTests(string providerName)
+		{
+			ProviderName = providerName;
+		}
+
 		[TestFixtureSetUp]
 		public void Setup()
 		{
@@ -29,7 +41,7 @@ namespace Massive.Tests.Oracle
 		[Test]
 		public void All_NoParameters()
 		{
-			var depts = new Department();
+			var depts = new Department(ProviderName);
 			var allRows = depts.All().ToList();
 			Assert.AreEqual(60, allRows.Count);
 			foreach(var d in allRows)
@@ -42,7 +54,7 @@ namespace Massive.Tests.Oracle
 		[Test]
 		public void All_LimitSpecification()
 		{
-			var depts = new Department();
+			var depts = new Department(ProviderName);
 			var allRows = depts.All(limit: 10).ToList();
 			Assert.AreEqual(10, allRows.Count);
 		}
@@ -51,7 +63,7 @@ namespace Massive.Tests.Oracle
 		[Test]
 		public void All_WhereSpecification_OrderBySpecification()
 		{
-			var depts = new Department();
+			var depts = new Department(ProviderName);
 			var allRows = depts.All(orderBy: "DEPTNO DESC", where: "WHERE LOC=:0", args: "Nowhere").ToList();
 			Assert.AreEqual(9, allRows.Count);
 			int previous = int.MaxValue;
@@ -67,7 +79,7 @@ namespace Massive.Tests.Oracle
 		[Test]
 		public void All_WhereSpecification_OrderBySpecification_LimitSpecification()
 		{
-			var depts = new Department();
+			var depts = new Department(ProviderName);
 			var allRows = depts.All(limit: 6, orderBy: "DEPTNO DESC", where: "WHERE LOC=:0", args: "Nowhere").ToList();
 			Assert.AreEqual(6, allRows.Count);
 			int previous = int.MaxValue;
@@ -83,7 +95,7 @@ namespace Massive.Tests.Oracle
 		[Test]
 		public void Paged_NoSpecification()
 		{
-			var depts = new Department();
+			var depts = new Department(ProviderName);
 			// no order by, so in theory this is useless. It will order on PK though
 			var page2 = depts.Paged(currentPage: 2, pageSize: 10);
 			var pageItems = ((IEnumerable<dynamic>)page2.Items).ToList();
@@ -95,7 +107,7 @@ namespace Massive.Tests.Oracle
 		[Test]
 		public void Paged_OrderBySpecification()
 		{
-			var depts = new Department();
+			var depts = new Department(ProviderName);
 			var page2 = depts.Paged(orderBy: "DEPTNO DESC", currentPage: 2, pageSize: 10);
 			var pageItems = ((IEnumerable<dynamic>)page2.Items).ToList();
 			Assert.AreEqual(10, pageItems.Count);
@@ -105,7 +117,7 @@ namespace Massive.Tests.Oracle
 		[Test]
 		public void Paged_SqlSpecification()
 		{
-			var depts = new Department();
+			var depts = new Department(ProviderName);
 			var page2 = depts.Paged(sql: "SELECT * FROM DEPT", primaryKey: "DEPTNO", pageSize: 10, currentPage: 2);
 			var pageItems = ((IEnumerable<dynamic>)page2.Items).ToList();
 			Assert.AreEqual(10, pageItems.Count);
@@ -115,7 +127,7 @@ namespace Massive.Tests.Oracle
 		[Test]
 		public void Insert_SingleRow()
 		{
-			var depts = new Department();
+			var depts = new Department(ProviderName);
 			var inserted = depts.Insert(new { DNAME = "Massive Dep", LOC = "Beach" });
 			Assert.IsTrue(inserted.DEPTNO > 0);
 			Assert.AreEqual(1, depts.Delete(inserted.DEPTNO));
@@ -124,7 +136,7 @@ namespace Massive.Tests.Oracle
 		[Test]
 		public void Save_SingleRow()
 		{
-			var depts = new Department();
+			var depts = new Department(ProviderName);
 			dynamic toSave = new {DNAME = "Massive Dep", LOC = "Beach"}.ToExpando();
 			var result = depts.Save(toSave);
 			Assert.AreEqual(1, result);
@@ -135,7 +147,7 @@ namespace Massive.Tests.Oracle
 		[Test]
 		public void Save_MultipleRows()
 		{
-			var depts = new Department();
+			var depts = new Department(ProviderName);
 			object[] toSave = new object[]
 								   {
 									   new {DNAME = "Massive Dep", LOC = "Beach"}.ToExpando(),
@@ -164,7 +176,7 @@ namespace Massive.Tests.Oracle
 		public void CleanUp()
 		{
 			// delete all rows with department name 'Massive Dep'. 
-			var depts = new Department();
+			var depts = new Department(ProviderName);
 			depts.Delete(null, "DNAME=:0", "Massive Dep");
 		}
 	}

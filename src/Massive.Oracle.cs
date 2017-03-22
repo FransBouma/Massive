@@ -1,4 +1,4 @@
-///////////////////////////////////////////////////////////////////////////////////////////////////
+﻿///////////////////////////////////////////////////////////////////////////////////////////////////
 // Massive v2.0. Oracle specific code.
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Licensed to you under the New BSD License
@@ -88,10 +88,6 @@ namespace Massive
 	/// </summary>
 	public partial class DynamicModel
 	{
-		#region Members
-		private static PropertyInfo _bindByNameDescriptor, _initialLongFetchSizeDescriptor;
-		#endregion
-
 		#region Constants
 		// Mandatory constants/variables every DB has to define. 
 		/// <summary>
@@ -116,16 +112,8 @@ namespace Massive
 			{
 				return;
 			}
-			if(_bindByNameDescriptor == null)
-			{
-				_bindByNameDescriptor = toAlter.GetType().GetProperty("BindByName");
-			}
-			if(_initialLongFetchSizeDescriptor == null)
-			{
-				_initialLongFetchSizeDescriptor = toAlter.GetType().GetProperty("InitialLONGFetchSize");
-			}
-			_bindByNameDescriptor.SetValue(toAlter, true, null);	// keep true as the default as otherwise ODP.NET won't bind the parameters by name but by location.
-			_initialLongFetchSizeDescriptor.SetValue(toAlter, -1, null);	// this is the ideal value, it obtains the LONG value in one go.
+			((dynamic)toAlter).BindByName = true;   // keep true as the default as otherwise ODP.NET won't bind the parameters by name but by location.
+			((dynamic)toAlter).InitialLONGFetchSize = -1;   // this is the ideal value, it obtains the LONG value in one go.
 		}
 
 

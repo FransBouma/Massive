@@ -7,13 +7,13 @@ namespace Massive.Tests.MySql.TableClasses
 {
 	public class Film : DynamicModel
 	{
-		public Film() : this(true)
+		public Film(string providerName) : this(providerName, true)
 		{
 		}
 
 
-		public Film(bool includeSchema) :
-			base(TestConstants.ReadTestConnectionStringName, includeSchema ? "sakila.film" : "film", "film_id")
+		public Film(string providerName, bool includeSchema) :
+			base(string.Format(TestConstants.ReadTestConnectionStringName, providerName), includeSchema ? "sakila.film" : "film", "film_id")
 		{
 		}
 
