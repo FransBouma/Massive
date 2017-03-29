@@ -29,11 +29,15 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+#if !COREFX
 using System.Configuration;
+#endif
 using System.Data;
 using System.Data.Common;
 using System.Dynamic;
 using System.Linq;
+using System.Reflection;
+using System.Text;
 
 namespace Massive
 {
@@ -109,12 +113,14 @@ namespace Massive
 			}
 			var result = new ExpandoObject();
 			var d = (IDictionary<string, object>)result; //work with the Expando as a Dictionary
+#if !COREFX
 			if(o.GetType() == typeof(NameValueCollection) || o.GetType().IsSubclassOf(typeof(NameValueCollection)))
 			{
 				var nv = (NameValueCollection)o;
 				nv.Cast<string>().Select(key => new KeyValuePair<string, object>(key, nv[key])).ToList().ForEach(i => d.Add(i));
 			}
 			else
+#endif
 			{
 				var props = o.GetType().GetProperties();
 				foreach(var item in props)
@@ -137,6 +143,7 @@ namespace Massive
 		}
 
 
+#if !COREFX || !NETCOREAPP1_1
 		/// <summary>
 		/// Extension method to convert dynamic data to a DataTable. Useful for databinding.
 		/// </summary>
@@ -185,6 +192,7 @@ namespace Massive
 			}
 			return toFill;
 		}
+#endif
 	}
 
 
@@ -197,11 +205,7 @@ namespace Massive
 		{
 			get
 			{
-				if(ConfigurationManager.ConnectionStrings.Count > 1)
-				{
-					return new DynamicModel(ConfigurationManager.ConnectionStrings[1].Name);
-				}
-				throw new InvalidOperationException("Need a connection string name - can't determine what it is");
+				return DynamicModel.Open();
 			}
 		}
 	}
@@ -213,7 +217,7 @@ namespace Massive
 	/// <seealso cref="System.Dynamic.DynamicObject" />
 	public partial class DynamicModel : DynamicObject
 	{
-		#region Members
+#region Members
 		private DbProviderFactory _factory;
 		private string _connectionString;
 		private IEnumerable<dynamic> _schema;
@@ -221,41 +225,97 @@ namespace Massive
 		#endregion
 
 
+		// disable deprecated warning (for IConnectionStringProvider)
+#pragma warning disable 0618
 		/// <summary>
 		/// Initializes a new instance of the <see cref="DynamicModel" /> class.
 		/// </summary>
-		/// <param name="connectionStringName">Name of the connection string to load from the config file.</param>
+		/// <param name="connectionStringOrName">The connection string to use. In .NET Framework but not .NET Core may instead be the connection string name to load from the config file.
+		/// When passing the connection string itself, Massive supports the non-standard syntax of including ProviderName=... within the connection string.</param>
 		/// <param name="tableName">Name of the table to read the meta data for. Can be left empty, in which case the name of this type is used.</param>
 		/// <param name="primaryKeyField">The primary key field. Can be left empty, in which case 'ID' is used.</param>
 		/// <param name="descriptorField">The descriptor field, if the table is a lookup table. Descriptor field is the field containing the textual representation of the value
 		/// in primaryKeyField.</param>
 		/// <param name="primaryKeyFieldSequence">The primary key sequence to use. Specify the empty string if the PK isn't sequenced/identity. Is initialized by default with
 		/// the name specified in the constant DynamicModel.DefaultSequenceName.</param>
-		/// <param name="connectionStringProvider">The connection string provider to use. By default this is empty and the default provider is used which will read values from 
-		/// the application's config file.</param>
-		public DynamicModel(string connectionStringName, string tableName = "", string primaryKeyField = "", string descriptorField = "",
+		/// <param name="connectionStringProvider">The connection string provider to use. By default this is empty and the default provider is used, which works as described for the
+		/// connectionStringOrName parameter. (This optional connectionStringProvider parameter is deprecated: consider using the constructor which takes ConnectionProvider instead.)</param>
+		/// <remarks>The fact that this constructor takes the optional, deprecated IConnectionStringProvider parameeter is for backwards compatibility.</remarks>
+		public DynamicModel(string connectionStringOrName = "", string tableName = "", string primaryKeyField = "", string descriptorField = "",
 							string primaryKeyFieldSequence = DynamicModel._defaultSequenceName,
 							IConnectionStringProvider connectionStringProvider = null)
 		{
+			ConnectionProvider connectionProvider = null;
+			if(connectionStringProvider != null)
+			{
+				connectionProvider = new ConnectionProviderForIConnectionStringProvider(connectionStringOrName, connectionStringProvider);
+				connectionStringOrName = null;
+			}
+			Init(connectionStringOrName, tableName, primaryKeyField, descriptorField, primaryKeyFieldSequence, connectionProvider);
+		}
+#pragma warning restore 0618
+
+
+		/// <summary>
+		/// Initializes a new instance of the <see cref="DynamicModel" /> class.
+		/// </summary>
+		/// <param name="connectionProvider">Optional connection provider, to support plugging in unknown providers.</param>
+		/// <param name="tableName">Name of the table to read the meta data for. Can be left empty, in which case the name of this type is used.</param>
+		/// <param name="primaryKeyField">The primary key field. Can be left empty, in which case 'ID' is used.</param>
+		/// <param name="descriptorField">The descriptor field, if the table is a lookup table. Descriptor field is the field containing the textual representation of the value
+		/// in primaryKeyField.</param>
+		/// <param name="primaryKeyFieldSequence">The primary key sequence to use. Specify the empty string if the PK isn't sequenced/identity. Is initialized by default with
+		/// the name specified in the constant DynamicModel.DefaultSequenceName.</param>
+		public DynamicModel(ConnectionProvider connectionProvider, string tableName = "", string primaryKeyField = "", string descriptorField = "",
+							string primaryKeyFieldSequence = DynamicModel._defaultSequenceName)
+		{
+			Init(null, tableName, primaryKeyField, descriptorField, primaryKeyFieldSequence, connectionProvider);
+		}
+
+
+		/// <summary>
+		/// Initializes a new instance of the <see cref="DynamicModel" /> class.
+		/// </summary>
+		/// <param name="connectionStringOrName">The connection string to use (or in .NET Framework but not Core the name of the connection string entry to load from config file).
+		/// When passing the connection string itself, Massive supports the non-standard syntax of including ProviderName=... in the connection string.</param>
+		/// <param name="tableName">Name of the table to read the meta data for. Can be left empty, in which case the name of this type is used.</param>
+		/// <param name="primaryKeyField">The primary key field. Can be left empty, in which case 'ID' is used.</param>
+		/// <param name="descriptorField">The descriptor field, if the table is a lookup table. Descriptor field is the field containing the textual representation of the value
+		/// in primaryKeyField.</param>
+		/// <param name="primaryKeyFieldSequence">The primary key sequence to use. Specify the empty string if the PK isn't sequenced/identity. Is initialized by default with
+		/// the name specified in the constant DynamicModel.DefaultSequenceName.</param>
+		/// <param name="connectionProvider">Optional connection provider, to support plugging in unknown providers.</param>
+		internal void Init(string connectionStringOrName = "", string tableName = "", string primaryKeyField = "", string descriptorField = "",
+							string primaryKeyFieldSequence = DynamicModel._defaultSequenceName,
+							ConnectionProvider connectionProvider = null)
+		{
+			if(connectionProvider == null)
+			{
+#if !COREFX
+				connectionProvider = new ConfigFileConnectionProvider(connectionStringOrName);
+				if(connectionProvider.ConnectionString == null)
+#endif
+				{
+					// use pure connection string provider (always on Core, or if it wasn't a valid connection string name on Framework)
+					connectionProvider = new PureConnectionStringProvider(connectionStringOrName, DbProviderFactoryName);
+				}
+			}
+
+			_connectionString = connectionProvider.ConnectionString;
+			_factory = connectionProvider.ProviderFactory;
+
 			this.TableName = string.IsNullOrWhiteSpace(tableName) ? this.GetType().Name : tableName;
 			ProcessTableName();
 			this.PrimaryKeyField = string.IsNullOrWhiteSpace(primaryKeyField) ? "ID" : primaryKeyField;
+#if !COREFX
 			_primaryKeyFieldSequence = primaryKeyFieldSequence == "" ? ConfigurationManager.AppSettings["default_seq"] : primaryKeyFieldSequence;
+#else
+			_primaryKeyFieldSequence = primaryKeyFieldSequence;
+#endif
 			this.DescriptorField = descriptorField;
 			this.Errors = new List<string>();
-
-			if(connectionStringProvider == null)
-			{
-				connectionStringProvider = new ConfigurationBasedConnectionStringProvider();
-			}
-			var _providerName = connectionStringProvider.GetProviderName(connectionStringName);
-			if(string.IsNullOrWhiteSpace(_providerName))
-			{
-				_providerName = this.DbProviderFactoryName;
-			}
-			_factory = DbProviderFactories.GetFactory(_providerName);
-			_connectionString = connectionStringProvider.GetConnectionString(connectionStringName);
 		}
+
 
 
 		/// <summary>
@@ -279,12 +339,13 @@ namespace Massive
 		/// </summary>
 		/// <param name="connectionStringName">Name of the connection string to load from the config file.</param>
 		/// <returns>ready to use, empty DynamicModel</returns>
-		public static DynamicModel Open(string connectionStringName)
+		public static DynamicModel Open(string connectionStringName = null)
 		{
 			return new DynamicModel(connectionStringName);
 		}
 
 
+#if !COREFX
 		/// <summary>
 		/// Creates a new Expando from a Form POST - white listed against the columns in the DB, only setting values which names are in the schema.
 		/// </summary>
@@ -304,6 +365,7 @@ namespace Massive
 			}
 			return result;
 		}
+#endif
 
 
 		/// <summary>
@@ -322,7 +384,6 @@ namespace Massive
 					{
 						yield return rdr.RecordToExpando();
 					}
-					rdr.Close();
 				}
 				conn.Close();
 			}
@@ -344,7 +405,6 @@ namespace Massive
 				{
 					yield return rdr.RecordToExpando();
 				}
-				rdr.Close();
 			}
 		}
 
@@ -1146,7 +1206,7 @@ namespace Massive
 		/// <returns></returns>
 		private bool ColumnExists(string columnName)
 		{
-			return this.Schema.Any(c => string.Compare(this.GetColumnName(c), columnName, StringComparison.InvariantCultureIgnoreCase) == 0);
+			return this.Schema.Any(c => string.Compare(this.GetColumnName(c), columnName, StringComparison.OrdinalIgnoreCase) == 0);
 		}
 
 
@@ -1209,7 +1269,7 @@ namespace Massive
 		/// <returns></returns>
 		private dynamic GetColumn(string columnName)
 		{
-			return this.Schema.FirstOrDefault(c => string.Compare(this.GetColumnName(c), columnName, StringComparison.InvariantCultureIgnoreCase) == 0);
+			return this.Schema.FirstOrDefault(c => string.Compare(this.GetColumnName(c), columnName, StringComparison.OrdinalIgnoreCase) == 0);
 		}
 
 
@@ -1291,7 +1351,7 @@ namespace Massive
 			}
 		}
 
-		#region Obsolete methods. Do not use
+#region Obsolete methods. Do not use
 		/// <summary>
 		/// Builds a set of Insert and Update commands based on the passed-on objects. These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
 		/// With a PK property (whatever PrimaryKeyField is set to) will be created at UPDATEs
@@ -1306,10 +1366,10 @@ namespace Massive
 			}
 			return commands;
 		}
-		#endregion
+#endregion
 
 
-		#region Properties
+#region Properties
 		/// <summary>
 		/// List out all the schema bits for use with ... whatever
 		/// </summary>
@@ -1384,7 +1444,7 @@ namespace Massive
 			get { return _connectionString; }
 			set { _connectionString = value; }
 		}
-		#endregion
+#endregion
 	}
 
 
@@ -1392,6 +1452,7 @@ namespace Massive
 	/// Interface for specifying ado.net provider name and connection string. Used to create custom connection string/ado.net factory name providers 
 	/// for sources other than .config files, e.g. with usage in ASPNET5
 	/// </summary>
+	[Obsolete("Consider using abstract class interface ConnectionProvider instead.")]
 	public interface IConnectionStringProvider
 	{
 		/// <summary>
@@ -1410,30 +1471,251 @@ namespace Massive
 
 
 	/// <summary>
-	/// Default implementation of IConnectionStringProvider which uses config files for its source.
+	/// Abstract class interface for specifying ADO.NET provider factory and connection string.
+	/// Your implementation of this should have a constructor which sets the two public properties.
 	/// </summary>
-	/// <seealso cref="Massive.IConnectionStringProvider" />
-	public class ConfigurationBasedConnectionStringProvider : IConnectionStringProvider
+	public abstract class ConnectionProvider
 	{
 		/// <summary>
-		/// Gets the name of the provider which is the name of the DbProviderFactory specified in the connection string stored under the name specified.
+		/// The DbProviderFactory instance to use; may be from a previously unknown provider, as long as the SQL required matches that of a known database.
 		/// </summary>
-		/// <param name="connectionStringName">Name of the connection string.</param>
-		/// <returns></returns>
-		public string GetProviderName(string connectionStringName)
+		public DbProviderFactory ProviderFactory { get; protected set; }
+
+		/// <summary>
+		/// The connection string (as returned here, must be in native DB format with no extras).
+		/// </summary>
+		public string ConnectionString { get; protected set; }
+	}
+
+
+	// disable deprecated warning (for IConnectionStringProvider)
+#pragma warning disable 0618
+	/// <summary>
+	/// New ConnectionProvider wrapper for old IConnectionStringProvider.
+	/// </summary>
+	internal class ConnectionProviderForIConnectionStringProvider : ConnectionProvider
+	{
+		/// <summary>
+		/// ConnectionProviderForIConnectionStringProvider constructor.
+		/// This will always use System.Data.Common.DbProviderFactories on .NET Framework,
+		/// and always use DynamicModelProviderFactories on .NET Core.
+		/// </summary>
+		/// <param name="connectionStringName">The connection string name (only, not actual connection string).</param>
+		/// <param name="connectionStringProvider">The old-style IConnectionStringProvider object.</param>
+		internal ConnectionProviderForIConnectionStringProvider(string connectionStringName, IConnectionStringProvider connectionStringProvider)
 		{
-			var providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
-			return !string.IsNullOrWhiteSpace(providerName) ? providerName : null;
+			ConnectionString = connectionStringProvider.GetConnectionString(connectionStringName);
+			string providerName = connectionStringProvider.GetProviderName(connectionStringName);
+			if(providerName != null)
+			{
+#if COREFX
+				ProviderFactory = DynamicModelProviderFactories.GetFactory(providerName);
+#else
+				ProviderFactory = DbProviderFactories.GetFactory(providerName);
+#endif
+			}
+		}
+	}
+#pragma warning restore 0618
+
+
+	/// <summary>
+	/// Massive equivalent of System.Data.Common.DbProviderFactories (which does not exist in .NET Core): a registry of supported providers
+	/// for provider names known to Massive.
+	/// To use providers not yet known to Massive, just pass your own implementation of ConnectionProvider to the DynamicModel constructor.
+	/// </summary>
+	/// <remarks>
+	/// This factory is always used by PureConnectionStringProvider (on .NET Core and on .NET Framework).
+	/// The old System.Data.Common.DbProviderFactories is used by ConfigFileConnectionProvider (.NET Framework only).
+	/// So: if you pass a pure connection string to Massive then it won't look for providers registered in the traditional way, not even on .NET Framework;
+	/// however if you pass a connection string name (the old approach, available on .NET Framework only) then everything will work as it used to.
+	/// </remarks>
+	public class DynamicModelProviderFactories
+	{
+		private const string INSTANCE_FIELD_NAME = "Instance";
+
+		/// <summary>
+		/// Return the factory object for the ADO.NET provider, for provider names known to Massive.
+		/// </summary>
+		/// <param name="providerName">The provider name</param>
+		/// <returns></returns>
+		public static DbProviderFactory GetFactory(string providerName)
+		{
+			string assemblyName = null;
+			var factoryClass = GetProviderFactoryClass(providerName);
+			string[] elements = factoryClass.Split(',');
+			string factoryClassName = elements[0];
+			if(elements.Length > 1)
+			{
+				assemblyName = elements[1];
+			}
+			else
+			{
+				assemblyName = assemblyName ?? factoryClassName.Substring(0, factoryClassName.LastIndexOf("."));
+			}
+			var assemblyNameClass = new AssemblyName(assemblyName);
+			Type type = Assembly.Load(assemblyNameClass).GetType(factoryClassName);
+			var f = type.GetField(INSTANCE_FIELD_NAME);
+			if(f == null)
+			{
+				throw new NotImplementedException("No " + INSTANCE_FIELD_NAME + " field/property found in intended DbProviderFactory class '" + factoryClassName + "'");
+			}
+			return (DbProviderFactory)f.GetValue(null);
+		}
+
+
+		/// <summary>
+		/// Get factory class name based on known provider name.
+		/// </summary>
+		/// <param name="providerName">Provider name</param>
+		/// <returns>"fully.qualified.provider.class, assembly.name", if assembly.name is ommitted then everything up to the class name is used instead</returns>
+		private static string GetProviderFactoryClass(string providerName)
+		{
+			switch(providerName.ToLowerInvariant())
+			{
+				case "system.data.sqlclient":
+					return "System.Data.SqlClient.SqlClientFactory";
+
+				case "oracle.manageddataaccess.client":
+					return "Oracle.ManagedDataAccess.Client.OracleClientFactory";
+
+				case "oracle.dataaccess.client":
+					return "Oracle.DataAccess.Client.OracleClientFactory";
+
+				case "npgsql":
+					return "Npgsql.NpgsqlFactory";
+
+				case "mysql.data.mysqlclient":
+#if COREFX
+					//return "MySql.Data.MySqlClient.MySqlClientFactory, MySql.Data.Core"; // older/beta version
+					return "MySql.Data.MySqlClient.MySqlClientFactory, MySql.Data";
+#else
+					return "MySql.Data.MySqlClient.MySqlClientFactory, MySql.Data";
+#endif
+
+				case "devart.data.mysql":
+					return "Devart.Data.MySql.MySqlProviderFactory";
+
+				case "system.data.sqlite":
+					return "System.Data.SQLite.SQLiteFactory";
+
+				case "microsoft.data.sqlite":
+					return "Microsoft.Data.Sqlite.SqliteFactory";
+
+				default:
+					throw new InvalidOperationException("Unknown database provider: " + providerName);
+			}
+		}
+	}
+
+
+	/// <summary>
+	/// Implementation of ConnectionProvider which sorts out everything from a connection string with added property ProviderName=... .
+	/// </summary>
+	/// <seealso cref="Massive.ConnectionProvider" />
+	internal class PureConnectionStringProvider : ConnectionProvider
+	{
+		/// <summary>
+		/// PureConnectionStringProvider constructor.
+		/// </summary>
+		/// <param name="ConnectionString">The connection string; this provider requires the non-standard syntax of having ProviderName=... included in the connection string itself.</param>
+		/// <param name="isFailoverFromConfigFile">Modifies the exception message</param>
+		internal PureConnectionStringProvider(string ConnectionString, string DefaultProviderName = null)
+		{
+			string _providerName = null;
+			var extraMessage = "";
+#if !COREFX
+			extraMessage = " (and is not a valid connection string name)";
+#endif
+			try
+			{
+				StringBuilder connectionString = new StringBuilder();
+				foreach(var configPair in ConnectionString.Split(';'))
+				{
+					if(!string.IsNullOrEmpty(configPair))
+					{
+						var keyValuePair = configPair.Split('=');
+						if("providername".Equals(keyValuePair[0], StringComparison.OrdinalIgnoreCase))
+						{
+							_providerName = keyValuePair[1];
+						}
+						else
+						{
+							connectionString.Append(configPair);
+							connectionString.Append(";");
+						}
+					}
+				}
+				if(_providerName == null)
+				{
+					_providerName = DefaultProviderName;
+				}
+				if(_providerName == null)
+				{
+					throw new InvalidOperationException("Cannot find ProviderName=... in connection string passed to DynamicModel" + extraMessage);
+				}
+				ProviderFactory = DynamicModelProviderFactories.GetFactory(_providerName);
+				this.ConnectionString = connectionString.ToString();
+			}
+			catch
+			{
+				throw new InvalidOperationException("Cannot parse as connection string \"" + ConnectionString + "\"" + extraMessage);
+			}
+		}
+	}
+
+
+#if !COREFX
+	/// <summary>
+	/// Default implementation of ConnectionProvider which uses config files for its source.
+	/// </summary>
+	/// <seealso cref="Massive.ConnectionProvider" />
+	internal class ConfigFileConnectionProvider : ConnectionProvider
+	{
+		/// <summary>
+		/// ConfigFileConnectionProvider constructor.
+		/// </summary>
+		/// <param name="ConnectionStringName">Connection string name; may be null to load the first connection string in the user config file.</param>
+		internal ConfigFileConnectionProvider(string connectionStringName = null)
+		{
+			ConnectionStringSettings connectionStringSettings = GetConnectionStringSettings(connectionStringName);
+			if (connectionStringSettings != null)
+			{
+				ConnectionString = connectionStringSettings.ConnectionString;
+				string providerName = connectionStringSettings.ProviderName;
+				if(providerName != null)
+				{
+					ProviderFactory = DbProviderFactories.GetFactory(providerName);
+				}
+			}
 		}
 
 		/// <summary>
-		/// Gets the connection string stored under the name specified
+		/// Return ConnectionStringSettings from name, exception if missing
 		/// </summary>
 		/// <param name="connectionStringName">Name of the connection string.</param>
 		/// <returns></returns>
-		public string GetConnectionString(string connectionStringName)
+		private ConnectionStringSettings GetConnectionStringSettings(string connectionStringName)
 		{
-			return ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
+			ConnectionStringSettings connectionStringSettings = null;
+			if(connectionStringName == null)
+			{
+				// This now works ;)
+				// http://stackoverflow.com/a/4681754/
+				var machineConfigCount = System.Configuration.ConfigurationManager.OpenMachineConfiguration().ConnectionStrings.ConnectionStrings.Count;
+				if(ConfigurationManager.ConnectionStrings.Count <= machineConfigCount)
+				{
+					throw new InvalidOperationException("No user-configured connection string available");
+				}
+				connectionStringSettings = ConfigurationManager.ConnectionStrings[machineConfigCount];
+			}
+			else
+			{
+				// may be null if there is no such connection string name; Massive will switch to using the pure connection string provider
+				connectionStringSettings = ConfigurationManager.ConnectionStrings[connectionStringName];
+			}
+			return connectionStringSettings;
 		}
 	}
+#endif
 }

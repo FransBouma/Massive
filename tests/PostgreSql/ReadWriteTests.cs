@@ -4,7 +4,9 @@ using System.Linq;
 using System.Text;
 using NUnit.Framework;
 using PostgreSql.TableClasses;
+#if !COREFX
 using SD.Tools.OrmProfiler.Interceptor;
+#endif
 
 namespace PostgreSql
 {
@@ -20,7 +22,9 @@ namespace PostgreSql
 		[TestFixtureSetUp]
 		public void Setup()
 		{
+#if !COREFX
 			InterceptorCore.Initialize("Massive Postgresql Read/Write tests");
+#endif
 		}
 		
 

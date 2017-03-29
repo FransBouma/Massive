@@ -1,0 +1,40 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp1.1</TargetFramework>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <DefineConstants>COREFX</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\Massive.Shared.Async.cs">
+      <Link>Massive.Shared.Async.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\Massive.Shared.cs">
+      <Link>Massive.Shared.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\Massive.PostgreSql.cs">
+      <Link>Massive.SqlServer.cs</Link>
+    </Compile>
+    <Compile Include="..\..\tests\PostgreSql\ConstantsEnums.cs">
+      <Link>ConstantsEnums.cs</Link>
+    </Compile>
+    <Compile Include="..\..\tests\PostgreSql\ReadWriteTests.cs">
+      <Link>ReadWriteTests.cs</Link>
+    </Compile>
+    <Compile Include="..\..\tests\PostgreSql\TableClasses\Customer.cs">
+      <Link>TableClasses\Customer.cs</Link>
+    </Compile>
+    <Compile Include="..\..\tests\PostgreSql\TableClasses\Product.cs">
+      <Link>TableClasses\Product.cs</Link>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NUnit" Version="3.6.1" />
+    <PackageReference Include="System.Data.Common" Version="4.3.0" />
+  </ItemGroup>
+
+  </Project>

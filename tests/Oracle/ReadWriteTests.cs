@@ -5,7 +5,9 @@ using System.Linq;
 using System.Text;
 using Massive.Tests.Oracle.TableClasses;
 using NUnit.Framework;
+#if !COREFX
 using SD.Tools.OrmProfiler.Interceptor;
+#endif
 
 namespace Massive.Tests.Oracle
 {
@@ -34,7 +36,9 @@ namespace Massive.Tests.Oracle
 		[TestFixtureSetUp]
 		public void Setup()
 		{
+#if !COREFX
 			InterceptorCore.Initialize("Massive Oracle read/write tests .NET 4.0");
+#endif
 		}
 
 

@@ -7,7 +7,9 @@ using System.Runtime.InteropServices;
 using System.Text;
 using Massive.Tests.TableClasses;
 using NUnit.Framework;
+#if !COREFX
 using SD.Tools.OrmProfiler.Interceptor;
+#endif
 
 namespace Massive.Tests
 {
@@ -17,7 +19,9 @@ namespace Massive.Tests
 		[TestFixtureSetUp]
 		public void Setup()
 		{
+#if !COREFX
 			InterceptorCore.Initialize("Massive SqlServer read tests .NET 4.0");
+#endif
 		}
 
 
@@ -174,7 +178,8 @@ namespace Massive.Tests
 			Assert.IsTrue(firstRow.ContainsKey("SalesPersonID"));
 		}
 
-		
+
+#if !COREFX || !NETCOREAPP1_1
 		[Test]
 		public void All_WhereSpecification_ToDataTable()
 		{
@@ -190,6 +195,7 @@ namespace Massive.Tests
 				Assert.AreEqual(30052, allRowsAsDataTable.Rows[i]["CustomerId"]);
 			}
 		}
+#endif
 
 
 		[Test]

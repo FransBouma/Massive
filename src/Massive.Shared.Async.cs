@@ -127,7 +127,6 @@ namespace Massive
 				{
 					toReturn.Add(rdr.RecordToExpando());
 				}
-				rdr.Close();
 			}
 			return toReturn;
 		}
