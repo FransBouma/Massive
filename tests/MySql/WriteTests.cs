@@ -162,7 +162,7 @@ namespace Massive.Tests.MySql
 		public void CleanUp()
 		{
 			// no way to call a proc easily at the moment, which should change in the future. 
-			var db = new DynamicModel(string.Format(TestConstants.WriteTestConnectionStringName, ProviderName));
+			var db = new DynamicModel(string.Format(TestConstants.WriteTestConnection, ProviderName));
 			using(var conn = db.OpenConnection())
 			{
 				var cmd = conn.CreateCommand();

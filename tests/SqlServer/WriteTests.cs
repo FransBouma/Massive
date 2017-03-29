@@ -150,7 +150,7 @@ namespace Massive.Tests
 		public void CleanUp()
 		{
 			// no way to call a proc easily at the moment, which should change in the future. 
-			var db = new DynamicModel(TestConstants.WriteTestConnectionStringName);
+			var db = new DynamicModel(TestConstants.WriteTestConnection);
 			using(var conn = db.OpenConnection())
 			{
 				var cmd = conn.CreateCommand();

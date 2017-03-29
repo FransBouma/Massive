@@ -13,7 +13,7 @@ namespace Massive.Tests.TableClasses
 
 
 		public Product(bool includeSchema) :
-			base(TestConstants.WriteTestConnectionStringName, includeSchema ? "dbo.Products" : "Products", "ProductID")
+			base(TestConstants.WriteTestConnection, includeSchema ? "dbo.Products" : "Products", "ProductID")
 		{
 		}
 	}

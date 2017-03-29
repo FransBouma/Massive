@@ -16,7 +16,7 @@ namespace PostgreSql.TableClasses
 
 
 		public Product(bool includeSchema) :
-			base(TestConstants.ReadWriteTestConnectionStringName, includeSchema ? "public.products" : "products", "productid", string.Empty, "products_productid_seq")
+			base(TestConstants.ReadWriteTestConnection, includeSchema ? "public.products" : "products", "productid", string.Empty, "products_productid_seq")
 		{
 		}
 	}

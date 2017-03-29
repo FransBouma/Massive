@@ -7,6 +7,10 @@ namespace Massive.Tests.Oracle
 {
 	public static class TestConstants
 	{
-		public static readonly string ReadWriteTestConnectionStringName = "Scott.ConnectionString.Oracle ({0})";
+#if COREFX
+		public static readonly string ReadWriteTestConnection = "data source=oravirtualnerd;user id=SCOTT;password=TIGER;persist security info=false;ProviderName={0}";
+#else
+		public static readonly string ReadWriteTestConnection = "Scott.ConnectionString.Oracle ({0})";
+#endif
 	}
 }

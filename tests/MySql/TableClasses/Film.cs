@@ -13,7 +13,7 @@ namespace Massive.Tests.MySql.TableClasses
 
 
 		public Film(string providerName, bool includeSchema) :
-			base(string.Format(TestConstants.ReadTestConnectionStringName, providerName), includeSchema ? "sakila.film" : "film", "film_id")
+			base(string.Format(TestConstants.ReadTestConnection, providerName), includeSchema ? "sakila.film" : "film", "film_id")
 		{
 		}
 
