@@ -4,6 +4,8 @@
 Massive was started by Rob Conery and [has been transfered](https://twitter.com/robconery/status/573139252487323648) to Frans Bouma on March 4th, 2015. It's a small MicroORM based on the `Expando` or `dynamic` type and allows you to work with your database with almost no effort. The design is based on the idea that the code provided to you in this repository is a start: you get up and running in no-time and from there edit and alter it as you see fit.  
 
 ## Current Status
+.NET Core is now supported! See the end of this README document.
+
 Massive is currently on v2.0. To obtain the old v1.0 code, please select the v1.0 branch in the GitHub menu or click [here](https://github.com/FransBouma/Massive/tree/v1.0).
 
 ## Installation
