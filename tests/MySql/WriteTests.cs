@@ -15,7 +15,9 @@ using SD.Tools.OrmProfiler.Interceptor;
 namespace Massive.Tests.MySql
 {
 	[TestFixture("MySql.Data.MySqlClient")]
+#if !COREFX
 	[TestFixture("Devart.Data.MySql")]
+#endif
 	public class WriteTests
 	{
 		private string ProviderName;
