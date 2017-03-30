@@ -217,7 +217,7 @@ namespace Massive
 	/// <seealso cref="System.Dynamic.DynamicObject" />
 	public partial class DynamicModel : DynamicObject
 	{
-#region Members
+		#region Members
 		private DbProviderFactory _factory;
 		private string _connectionString;
 		private IEnumerable<dynamic> _schema;
@@ -339,7 +339,7 @@ namespace Massive
 		/// </summary>
 		/// <param name="connectionStringName">Name of the connection string to load from the config file.</param>
 		/// <returns>ready to use, empty DynamicModel</returns>
-		public static DynamicModel Open(string connectionStringName = null)
+		public static DynamicModel Open(string connectionStringName = "")
 		{
 			return new DynamicModel(connectionStringName);
 		}
@@ -1351,7 +1351,7 @@ namespace Massive
 			}
 		}
 
-#region Obsolete methods. Do not use
+		#region Obsolete methods. Do not use
 		/// <summary>
 		/// Builds a set of Insert and Update commands based on the passed-on objects. These objects can be POCOs, Anonymous, NameValueCollections, or Expandos. Objects
 		/// With a PK property (whatever PrimaryKeyField is set to) will be created at UPDATEs
@@ -1366,10 +1366,10 @@ namespace Massive
 			}
 			return commands;
 		}
-#endregion
+		#endregion
 
 
-#region Properties
+		#region Properties
 		/// <summary>
 		/// List out all the schema bits for use with ... whatever
 		/// </summary>
@@ -1444,7 +1444,7 @@ namespace Massive
 			get { return _connectionString; }
 			set { _connectionString = value; }
 		}
-#endregion
+		#endregion
 	}
 
 
