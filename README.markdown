@@ -282,5 +282,41 @@ The callbacks you can use are:
  * BeforeDelete
  * BeforeSave
 
+## .NET Core Support
 
+Massive now just works on .NET Core.
 
+### Connection Configuration
+
+The main change you will notice is around connection string and provider configuration.
+
+On .NET Framework 4.0+ this still works from `.config` files, exactly as it did before. (So you will normally pass in a connection string *name* to Massive in .NET Framework; though as of this version, you can now also pass in the connection string itself, as for .NET Core, if you want to...)
+
+On .NET Core you just pass in the connection string and Massive does the rest (by magic...). You can append `ProviderName=...` to the connection string to select a different provider, but this is only relevant if you are running a non-standard provider for your database (and you can also still achieve this by changing the provider name in the code in your copy of Massive as you normally would have done).
+
+In both the above cases you could override the default behaviour (by passing in an instance of either the backwards-compatible `IConnectionStringProvider` or the new, more capable `ConnectionProvider` to your DynamicModel constructor) if you wanted to - but in normal cases you won't ever need to.
+
+### Compilation
+
+If you're dropping in the source files to compile Massive yourself, you'll need to define the `COREFX` compilation symbol to get the .NET Core version.
+
+### Breaking Changes in .NET Core support
+
+* The only methods which have to drop out of the Massive API, for now, are the two variants of `ToDataTable`, because .NET Core 1.1 does not support `DataTable`.
+	* The intention of the `NETCOREAPP1_1` conditional compilation settings in the code is that these two methods should pop back in automatically in .NET Core 2.0 projects (obviously that will be tested at that point!). If you're not using these two methods, you don't need to worry.
+
+* As described above, you will have to change where you store your connection string settings when you move to .NET Core. They can't be in a .NET .config file, because .NET Core does not support that.
+	* Instead, you just pass in a connection string to Massive, and it works!. (You can append `ProviderName=...` to this if you need to, but you typically won't need to, as described above.)
+
+## Supported ADO.NET Providers
+
+|ADO.NET Provider Name|.NET Framework 4.0+|.NET Core|
+|:-----|:-----|:-----|
+|System.Data.SqlClient|YES|YES|
+|Oracle.ManagedDataAccess.Client|YES|There is no .NET Core version of this provider yet [[ref]](www.oracle.com/technetwork/topics/dotnet/tech-info/odpnet-dotnet-core-sod-3628981.pdf)|
+|Oracle.DataAccess.Client|YES|There will never be a .NET Core version of this provider [[ref]](www.oracle.com/technetwork/topics/dotnet/tech-info/odpnet-dotnet-core-sod-3628981.pdf)|
+|Npgsql|YES|YES|
+|MySql.Data.MySqlClient|YES|YES (driver at pre-release on NuGet, but passing all tests in Massive)|
+|Devart.Data.MySql|YES|There is no .NET Core version of this provider yet|
+|System.Data.SQLite|YES|N/A|
+|Microsoft.Data.Sqlite|N/A|YES|
