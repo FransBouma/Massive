@@ -4,6 +4,8 @@
 Massive was started by Rob Conery and [has been transfered](https://twitter.com/robconery/status/573139252487323648) to Frans Bouma on March 4th, 2015. It's a small MicroORM based on the `Expando` or `dynamic` type and allows you to work with your database with almost no effort. The design is based on the idea that the code provided to you in this repository is a start: you get up and running in no-time and from there edit and alter it as you see fit.  
 
 ## Current Status
+.NET Core is now supported! See the end of this README document.
+
 Massive is currently on v2.0. To obtain the old v1.0 code, please select the v1.0 branch in the GitHub menu or click [here](https://github.com/FransBouma/Massive/tree/v1.0).
 
 ## Installation
@@ -282,5 +284,43 @@ The callbacks you can use are:
  * BeforeDelete
  * BeforeSave
 
+## .NET Core Support
+
+This version of Massive now just works on .NET Core, as well as continuing to fully support .NET Framework 4.0+ (or 4.5+ for aysnc support).
+
+The main change you will notice is around connection string and provider configuration.
+
+* On .NET Framework 4.0+ this still works from .config files, exactly as it did before: you pass in the connection string name to Massive, and the correct connection string and (optionally) provider name are fetched from the application config file.
+* On .NET Core there are no config files, so Massive now also supports passing in the connection string itself, which means that everything just works on .NET Core. This does actually require some extra magic in the codebase, but you probably won't ever need to worry about that, unless you need...
+
+#### Support For Alternative ADO.NET Providers
+
+If passing in the connection string itself, Massive now supports the non-standard syntax of appending `ProviderName=...` to specify the provider. This is non-standard because in .NET Framework .config files, ProviderName is *not* specified in the connection string but rather as another attribute next to it.
+
+`IConnectionStringProvider` is still supported and still works, even in .NET Core, for all the ADO.NET providers which Massive already knows about. But because of some unexpected limitations of .NET Core which look like they are going to be permanent, then in the (fairly unlikely) event that you need to use Massive with an ADO.NET provider which Massive does NOT already know about, on .NET Core, then you can use the new `ConnectionProvider` abstract class instead, to explicitly specify a `DbProviderFactory` object to use.
+
+For simpler use cases, and for *providers which Massive already knows about* (see **Supported ADO.NET Providers** below), you can also still change provider in Massive by editing the appropriate single line in your copy of the Massive code (see the **Requirements** section above); and you may well prefer to do this rather than having to continually append the name of the non-standard provider which you are using, where you can.
+
+### Compilation
+To compile the .NET Core version, you just need to define the `COREFX` compilation symbol.
+
+> This should be more future-proof that relying on the `NETCOREAPP1_1` symbol which Visual Studio 2017 defines for you, since that will presumably change! However the codebase does check the `NETCOREAPP1_1` symbol for one thing: we assume that `DataTable` *is* supported if that symbol is *not* defined... which ought to mean that `DataTable` support pops back in to Massive automatically in .NET Core 2, i.e. when `DataTable` support comes back into .NET Core.
 
 
+### Breaking Change in .NET Core support
+
+The only methods which have to drop out of the Massive API (and only for now, in .NET Core 1.1) are the two variants of `ToDataTable()`, because .NET Core 1.1 does not support `DataTable`! As described above, the intention is that these should pop back in automatically if you go to a .NET Core 2.0 project (though this partly depends on what Microsoft does with the conditional compilation symbols in future - we will update things here if necessary!).
+
+
+## Supported ADO.NET Providers
+
+|ADO.NET Provider Name|.NET Framework 4.0+|.NET Core|
+|:-----|:-----|:-----|
+|System.Data.SqlClient|YES|YES|
+|Oracle.ManagedDataAccess.Client|YES|There is no .NET Core version of this provider yet [[ref]](www.oracle.com/technetwork/topics/dotnet/tech-info/odpnet-dotnet-core-sod-3628981.pdf)|
+|Oracle.DataAccess.Client|YES|There will never be a .NET Core version of this provider [[ref]](www.oracle.com/technetwork/topics/dotnet/tech-info/odpnet-dotnet-core-sod-3628981.pdf)|
+|Npgsql|YES|YES|
+|MySql.Data.MySqlClient|YES|YES (driver at pre-release on NuGet, but passing all tests in Massive)|
+|Devart.Data.MySql|YES|There is no .NET Core version of this provider yet|
+|System.Data.SQLite|YES|N/A|
+|Microsoft.Data.Sqlite|N/A|YES|

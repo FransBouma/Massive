@@ -13,7 +13,7 @@ namespace Massive.Tests.MySql.TableClasses
 
 
 		public Product(string providerName, bool includeSchema) :
-			base(string.Format(TestConstants.WriteTestConnectionStringName, providerName), includeSchema ? "MassiveWriteTests.Products" : "Products", "ProductID")
+			base(string.Format(TestConstants.WriteTestConnection, providerName), includeSchema ? "MassiveWriteTests.Products" : "Products", "ProductID")
 		{
 		}
 	}

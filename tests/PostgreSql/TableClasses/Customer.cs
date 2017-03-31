@@ -16,7 +16,7 @@ namespace PostgreSql.TableClasses
 
 
 		public Customer(bool includeSchema) :
-			base(TestConstants.ReadWriteTestConnectionStringName, includeSchema ? "public.customers" : "customers", "customerid")
+			base(TestConstants.ReadWriteTestConnection, includeSchema ? "public.customers" : "customers", "customerid")
 		{
 		}
 	}

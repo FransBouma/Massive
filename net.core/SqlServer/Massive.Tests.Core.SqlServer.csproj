@@ -1,0 +1,52 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp1.1</TargetFramework>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <DefineConstants>COREFX</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\Massive.Shared.Async.cs">
+      <Link>Massive.Shared.Async.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\Massive.Shared.cs">
+      <Link>Massive.Shared.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\Massive.SqlServer.cs">
+      <Link>Massive.SqlServer.cs</Link>
+    </Compile>
+    <Compile Include="..\..\tests\SqlServer\ConstantsEnums.cs">
+      <Link>ConstantsEnums.cs</Link>
+    </Compile>
+    <Compile Include="..\..\tests\SqlServer\AsyncReadTests.cs">
+      <Link>AsyncReadTests.cs</Link>
+    </Compile>
+    <Compile Include="..\..\tests\SqlServer\WriteTests.cs">
+      <Link>WriteTests.cs</Link>
+    </Compile>
+    <Compile Include="..\..\tests\SqlServer\ReadTests.cs">
+      <Link>ReadTests.cs</Link>
+    </Compile>
+    <Compile Include="..\..\tests\SqlServer\TableClasses\Product.cs">
+      <Link>TableClasses\Product.cs</Link>
+    </Compile>
+    <Compile Include="..\..\tests\SqlServer\TableClasses\Category.cs">
+      <Link>TableClasses\Category.cs</Link>
+    </Compile>
+    <Compile Include="..\..\tests\SqlServer\TableClasses\SalesOrderHeader.cs">
+      <Link>TableClasses\SalesOrderHeader.cs</Link>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NUnit" Version="3.6.1" />
+    <PackageReference Include="NUnitLite" Version="3.6.1" />
+    <PackageReference Include="System.Data.Common" Version="4.3.0" />
+    <PackageReference Include="System.Data.SqlClient" Version="4.3.0" />
+  </ItemGroup>
+
+  </Project>

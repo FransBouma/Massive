@@ -16,7 +16,7 @@ namespace Massive.Tests.Sqlite.TableClasses
 
 
 		public Playlist(bool includeSchema) :
-			base(TestConstants.ReadWriteTestConnectionStringName, includeSchema ? "Playlist" : "Playlist", "PlaylistId", string.Empty, "last_insert_rowid()")
+			base(TestConstants.ReadWriteTestConnection, includeSchema ? "Playlist" : "Playlist", "PlaylistId", string.Empty, "last_insert_rowid()")
 		{
 		}
 	}

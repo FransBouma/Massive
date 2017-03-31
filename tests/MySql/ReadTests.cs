@@ -7,12 +7,16 @@ using System.Runtime.InteropServices;
 using System.Text;
 using Massive.Tests.MySql.TableClasses;
 using NUnit.Framework;
+#if !COREFX
 using SD.Tools.OrmProfiler.Interceptor;
+#endif
 
 namespace Massive.Tests.MySql
 {
 	[TestFixture("MySql.Data.MySqlClient")]
+#if !COREFX
 	[TestFixture("Devart.Data.MySql")]
+#endif
 	public class ReadTests
 	{
 		private string ProviderName;
@@ -29,7 +33,9 @@ namespace Massive.Tests.MySql
 		[TestFixtureSetUp]
 		public void Setup()
 		{
+#if !COREFX
 			InterceptorCore.Initialize("Massive MySql read tests .NET 4.0");
+#endif
 		}
 
 
@@ -187,6 +193,7 @@ namespace Massive.Tests.MySql
 		}
 
 
+#if !COREFX || !NETCOREAPP1_1
 		[Test]
 		public void All_WhereSpecification_ToDataTable()
 		{
@@ -202,6 +209,7 @@ namespace Massive.Tests.MySql
 				Assert.AreEqual(5, allRowsAsDataTable.Rows[i]["rental_duration"]);
 			}
 		}
+#endif
 
 
 		[Test]

@@ -16,7 +16,7 @@ namespace Massive.Tests.Sqlite.TableClasses
 
 
 		public Album(bool includeSchema) :
-			base(TestConstants.ReadWriteTestConnectionStringName, includeSchema ? "Album" : "Album", "AlbumId", string.Empty, "last_insert_rowid()")
+			base(TestConstants.ReadWriteTestConnection, includeSchema ? "Album" : "Album", "AlbumId", string.Empty, "last_insert_rowid()")
 		{
 		}
 	}

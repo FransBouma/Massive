@@ -7,7 +7,12 @@ namespace Massive.Tests
 {
 	public static class TestConstants
 	{
-		public static readonly string ReadTestConnectionStringName = "AdventureWorks.ConnectionString.SQL Server (SqlClient)";
-		public static readonly string WriteTestConnectionStringName = "MassiveWriteTests.ConnectionString.SQL Server (SqlClient)";
+#if COREFX
+		public static readonly string ReadTestConnection = "data source=thor.sd.local;initial catalog=AdventureWorks;integrated security=SSPI;persist security info=False;packet size=4096;ProviderName=System.Data.SqlClient;";
+		public static readonly string WriteTestConnection = "data source=thor.sd.local;initial catalog=MassiveWriteTests;integrated security=SSPI;persist security info=False;packet size=4096;ProviderName=System.Data.SqlClient;";
+#else
+		public static readonly string ReadTestConnection = "AdventureWorks.ConnectionString.SQL Server (SqlClient)";
+		public static readonly string WriteTestConnection = "MassiveWriteTests.ConnectionString.SQL Server (SqlClient)";
+#endif
 	}
 }

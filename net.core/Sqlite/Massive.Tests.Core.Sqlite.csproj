@@ -1,0 +1,43 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp1.1</TargetFramework>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <DefineConstants>COREFX</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\Massive.Shared.Async.cs">
+      <Link>Massive.Shared.Async.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\Massive.Shared.cs">
+      <Link>Massive.Shared.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\Massive.Sqlite.cs">
+      <Link>Massive.SqlServer.cs</Link>
+    </Compile>
+    <Compile Include="..\..\tests\Sqlite\ConstantsEnums.cs">
+      <Link>ConstantsEnums.cs</Link>
+    </Compile>
+    <Compile Include="..\..\tests\Sqlite\ReadWriteTests.cs">
+      <Link>ReadWriteTests.cs</Link>
+    </Compile>
+    <Compile Include="..\..\tests\Sqlite\TableClasses\Album.cs">
+      <Link>TableClasses\Album.cs</Link>
+    </Compile>
+    <Compile Include="..\..\tests\Sqlite\TableClasses\Playlist.cs">
+      <Link>TableClasses\Playlist.cs</Link>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SQLite" Version="1.1.0" />
+    <PackageReference Include="NUnit" Version="3.6.1" />
+    <PackageReference Include="NUnitLite" Version="3.6.1" />
+    <PackageReference Include="System.Data.Common" Version="4.3.0" />
+  </ItemGroup>
+
+  </Project>

@@ -4,7 +4,9 @@ using System.Linq;
 using System.Text;
 using NUnit.Framework;
 using Massive.Tests.Sqlite.TableClasses;
+#if !COREFX
 using SD.Tools.OrmProfiler.Interceptor;
+#endif
 
 namespace Massive.Tests.Sqlite
 {
@@ -20,7 +22,9 @@ namespace Massive.Tests.Sqlite
 		[SetUp]
 		public void Setup()
 		{
+#if !COREFX
 			InterceptorCore.Initialize("Sqlite Read/Write tests");
+#endif
 		}
 
 

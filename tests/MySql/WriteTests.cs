@@ -8,12 +8,16 @@ using System.Runtime.InteropServices;
 using System.Text;
 using Massive.Tests.MySql.TableClasses;
 using NUnit.Framework;
+#if !COREFX
 using SD.Tools.OrmProfiler.Interceptor;
+#endif
 
 namespace Massive.Tests.MySql
 {
 	[TestFixture("MySql.Data.MySqlClient")]
+#if !COREFX
 	[TestFixture("Devart.Data.MySql")]
+#endif
 	public class WriteTests
 	{
 		private string ProviderName;
@@ -30,7 +34,9 @@ namespace Massive.Tests.MySql
 		[TestFixtureSetUp]
 		public void Setup()
 		{
+#if !COREFX
 			InterceptorCore.Initialize("Massive MySql write tests .NET 4.0");
+#endif
 		}
 
 
@@ -158,7 +164,7 @@ namespace Massive.Tests.MySql
 		public void CleanUp()
 		{
 			// no way to call a proc easily at the moment, which should change in the future. 
-			var db = new DynamicModel(string.Format(TestConstants.WriteTestConnectionStringName, ProviderName));
+			var db = new DynamicModel(string.Format(TestConstants.WriteTestConnection, ProviderName));
 			using(var conn = db.OpenConnection())
 			{
 				var cmd = conn.CreateCommand();

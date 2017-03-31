@@ -8,7 +8,9 @@ using System.Runtime.InteropServices;
 using System.Text;
 using Massive.Tests.TableClasses;
 using NUnit.Framework;
+#if !COREFX
 using SD.Tools.OrmProfiler.Interceptor;
+#endif
 
 namespace Massive.Tests
 {
@@ -18,7 +20,9 @@ namespace Massive.Tests
 		[TestFixtureSetUp]
 		public void Setup()
 		{
+#if !COREFX
 			InterceptorCore.Initialize("Massive SqlServer write tests .NET 4.0");
+#endif
 		}
 
 
@@ -146,7 +150,7 @@ namespace Massive.Tests
 		public void CleanUp()
 		{
 			// no way to call a proc easily at the moment, which should change in the future. 
-			var db = new DynamicModel(TestConstants.WriteTestConnectionStringName);
+			var db = new DynamicModel(TestConstants.WriteTestConnection);
 			using(var conn = db.OpenConnection())
 			{
 				var cmd = conn.CreateCommand();

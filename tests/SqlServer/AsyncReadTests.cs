@@ -8,7 +8,9 @@ using System.Text;
 using System.Threading.Tasks;
 using Massive.Tests.TableClasses;
 using NUnit.Framework;
+#if !COREFX
 using SD.Tools.OrmProfiler.Interceptor;
+#endif
 
 namespace Massive.Tests
 {
@@ -18,7 +20,9 @@ namespace Massive.Tests
 		[TestFixtureSetUp]
 		public void Setup()
 		{
+#if !COREFX
 			InterceptorCore.Initialize("Massive SqlServer async read tests .NET 4.0");
+#endif
 		}
 
 
