@@ -286,29 +286,31 @@ The callbacks you can use are:
 
 ## .NET Core Support
 
-Massive now just works on .NET Core.
-
-### Connection Configuration
+This version of Massive now just works on .NET Core, as well as continuing to fully support .NET Framework 4.0+ (or 4.5+ for aysnc support).
 
 The main change you will notice is around connection string and provider configuration.
 
-On .NET Framework 4.0+ this still works from `.config` files, exactly as it did before. (So you will normally pass in a connection string *name* to Massive in .NET Framework; though as of this version, you can now also pass in the connection string itself, as for .NET Core, if you want to...)
+* On .NET Framework 4.0+ this still works from .config files, exactly as it did before: you pass in the connection string name to Massive, and the correct connection string and (optionally) provider name are fetched from the application config file.
+* On .NET Core there are no config files, so Massive now also supports passing in the connection string itself, which means that everything just works on .NET Core. This does actually require some extra magic in the codebase, but you probably won't ever need to worry about that, unless you need...
 
-On .NET Core you just pass in the connection string and Massive does the rest (by magic...). You can append `ProviderName=...` to the connection string to select a different provider, but this is only relevant if you are running a non-standard provider for your database (and you can also still achieve this by changing the provider name in the code in your copy of Massive as you normally would have done).
+#### Support For Alternative ADO.NET Providers
 
-In both the above cases you could override the default behaviour (by passing in an instance of either the backwards-compatible `IConnectionStringProvider` or the new, more capable `ConnectionProvider` to your DynamicModel constructor) if you wanted to - but in normal cases you won't ever need to.
+If passing in the connection string itself, Massive now supports the non-standard syntax of appending `ProviderName=...` to specify the provider. This is non-standard because in .NET Framework .config files, ProviderName is *not* specified in the connection string but rather as another attribute next to it.
+
+`IConnectionStringProvider` is still supported and still works, even in .NET Core, for all the ADO.NET providers which Massive already knows about. But because of some unexpected limitations of .NET Core which look like they are going to be permanent, then in the (fairly unlikely) event that you need to use Massive with an ADO.NET provider which Massive does NOT already know about, on .NET Core, then you can use the new `ConnectionProvider` abstract class instead, to explicitly specify a `DbProviderFactory` object to use.
+
+For simpler use cases, and for *providers which Massive already knows about* (see **Supported ADO.NET Providers** below), you can also still change provider in Massive by editing the appropriate single line in your copy of the Massive code (see the **Requirements** section above); and you may well prefer to do this rather than having to continually append the name of the non-standard provider which you are using, where you can.
 
 ### Compilation
+To compile the .NET Core version, you just need to define the `COREFX` compilation symbol.
 
-If you're dropping in the source files to compile Massive yourself, you'll need to define the `COREFX` compilation symbol to get the .NET Core version.
+> This should be more future-proof that relying on the `NETCOREAPP1_1` symbol which Visual Studio 2017 defines for you, since that will presumably change! However the codebase does check the `NETCOREAPP1_1` symbol for one thing: we assume that `DataTable` *is* supported if that symbol is *not* defined... which ought to mean that `DataTable` support pops back in to Massive automatically in .NET Core 2, i.e. when `DataTable` support comes back into .NET Core.
 
-### Breaking Changes in .NET Core support
 
-* The only methods which have to drop out of the Massive API, for now, are the two variants of `ToDataTable`, because .NET Core 1.1 does not support `DataTable`.
-	* The intention of the `NETCOREAPP1_1` conditional compilation settings in the code is that these two methods should pop back in automatically in .NET Core 2.0 projects (obviously that will be tested at that point!). If you're not using these two methods, you don't need to worry.
+### Breaking Change in .NET Core support
 
-* As described above, you will have to change where you store your connection string settings when you move to .NET Core. They can't be in a .NET .config file, because .NET Core does not support that.
-	* Instead, you just pass in a connection string to Massive, and it works!. (You can append `ProviderName=...` to this if you need to, but you typically won't need to, as described above.)
+The only methods which have to drop out of the Massive API (and only for now, in .NET Core 1.1) are the two variants of `ToDataTable()`, because .NET Core 1.1 does not support `DataTable`! As described above, the intention is that these should pop back in automatically if you go to a .NET Core 2.0 project (though this partly depends on what Microsoft does with the conditional compilation symbols in future - we will update things here if necessary!).
+
 
 ## Supported ADO.NET Providers
 
