@@ -118,5 +118,15 @@ namespace Massive.Tests.Sqlite
 			var playlists = new Playlist();
 			playlists.Delete(null, "Name=@0", "MassivePlaylist");
 		}
-    }
+		
+
+	    [Test]
+	    public void SchemaMetaDataRetrieval()
+	    {
+		    var pl = new Playlist();
+		    var schema = pl.Schema;
+		    Assert.IsNotNull(schema);
+		    Assert.AreEqual(2, schema.Count());
+	    }
+	}
 }

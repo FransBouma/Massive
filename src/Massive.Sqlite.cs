@@ -315,7 +315,7 @@ namespace Massive
 		/// </summary>
 		protected virtual string TableWithoutSchemaQuery
 		{
-			get { return "PRAGMA table_info(@0)"; }
+			get { return $"PRAGMA table_info({this.TableName})"; }
 		}
 		#endregion
 
