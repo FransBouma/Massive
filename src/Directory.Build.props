@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+	<PropertyGroup>
+		<AssemblyTitle>Massive</AssemblyTitle>
+		<AssemblyVersion>2.0.0.0</AssemblyVersion>
+		<Copyright>Copyright © 2009-2025 various contributors</Copyright>
+		<FileVersion>2.0.16.0127</FileVersion>
+		<GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+		<NeutralLanguage>en-US</NeutralLanguage>
+		<Product>Massive</Product>
+		<Title>Massive</Title>
+	</PropertyGroup>
+</Project>
